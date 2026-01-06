@@ -1,10 +1,11 @@
 import express, { Express } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import { Server as HTTPServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
-import config from './config';
+import config, { getBasePath_ } from './config';
 import logger from './utils/logger';
 
 // Services
@@ -240,6 +241,23 @@ export class App {
 
     // System routes (version, health - no auth required for basic endpoints)
     this.express.use('/api/system', systemRoutes);
+
+    // Serve static frontend files in production
+    if (config.nodeEnv === 'production') {
+      const publicPath = path.join(getBasePath_(), 'public');
+      this.express.use(express.static(publicPath));
+
+      // SPA fallback - serve index.html for any non-API routes
+      this.express.get('*', (req, res, next) => {
+        // Skip API routes
+        if (req.path.startsWith('/api/') || req.path === '/health') {
+          return next();
+        }
+        res.sendFile(path.join(publicPath, 'index.html'));
+      });
+
+      logger.info(`Serving frontend from ${publicPath}`);
+    }
 
     logger.info('Routes initialized');
   }
