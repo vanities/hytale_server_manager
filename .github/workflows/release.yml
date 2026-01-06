@@ -91,74 +91,74 @@ jobs:
 
           # Create install script for Windows
           cat > release-package/install.bat << 'EOFBAT'
-          @echo off
-          echo ======================================
-          echo   Hytale Server Manager - Setup
-          echo ======================================
-          echo.
-          cd /d "%~dp0"
+@echo off
+echo ======================================
+echo   Hytale Server Manager - Setup
+echo ======================================
+echo.
+cd /d "%~dp0"
 
-          echo Setting up database...
-          call npx prisma db push
-          echo.
-          echo Setup complete!
-          echo.
-          echo Run start.bat to launch the application.
-          pause
-          EOFBAT
+echo Setting up database...
+call node_modules\.bin\prisma db push
+echo.
+echo Setup complete!
+echo.
+echo Run start.bat to launch the application.
+pause
+EOFBAT
 
           # Create install script for Linux
           cat > release-package/install.sh << 'EOFSH'
-          #!/bin/bash
-          echo "======================================"
-          echo "  Hytale Server Manager - Setup"
-          echo "======================================"
-          echo
-          cd "$(dirname "$0")"
+#!/bin/bash
+echo "======================================"
+echo "  Hytale Server Manager - Setup"
+echo "======================================"
+echo
+cd "$(dirname "$0")"
 
-          echo "Setting up database..."
-          npx prisma db push
-          echo
-          echo "Setup complete!"
-          echo
-          echo "Run ./start.sh to launch the application."
-          EOFSH
+echo "Setting up database..."
+./node_modules/.bin/prisma db push
+echo
+echo "Setup complete!"
+echo
+echo "Run ./start.sh to launch the application."
+EOFSH
           chmod +x release-package/install.sh
 
           # Create start script for Windows
           cat > release-package/start.bat << 'EOFBAT'
-          @echo off
-          echo ======================================
-          echo   Hytale Server Manager
-          echo ======================================
-          echo.
-          cd /d "%~dp0"
-          set NODE_ENV=production
-          set HSM_BASE_PATH=%~dp0
-          echo Starting application...
-          echo Press Ctrl+C to stop
-          echo.
-          node dist\index.js
-          echo.
-          echo Application stopped.
-          pause
-          EOFBAT
+@echo off
+echo ======================================
+echo   Hytale Server Manager
+echo ======================================
+echo.
+cd /d "%~dp0"
+set NODE_ENV=production
+set HSM_BASE_PATH=%~dp0
+echo Starting application...
+echo Press Ctrl+C to stop
+echo.
+node dist\index.js
+echo.
+echo Application stopped.
+pause
+EOFBAT
 
           # Create start script for Linux
           cat > release-package/start.sh << 'EOFSH'
-          #!/bin/bash
-          echo "======================================"
-          echo "  Hytale Server Manager"
-          echo "======================================"
-          echo
-          cd "$(dirname "$0")"
-          export NODE_ENV=production
-          export HSM_BASE_PATH="$(pwd)"
-          echo "Starting application..."
-          echo "Press Ctrl+C to stop"
-          echo
-          node dist/index.js
-          EOFSH
+#!/bin/bash
+echo "======================================"
+echo "  Hytale Server Manager"
+echo "======================================"
+echo
+cd "$(dirname "$0")"
+export NODE_ENV=production
+export HSM_BASE_PATH="$(pwd)"
+echo "Starting application..."
+echo "Press Ctrl+C to stop"
+echo
+node dist/index.js
+EOFSH
           chmod +x release-package/start.sh
 
           # Create Windows package
