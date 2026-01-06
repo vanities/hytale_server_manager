@@ -90,17 +90,124 @@ jobs:
           mkdir -p release-package/data/{db,logs,servers,backups}
 
           # Create install script for Windows
-          printf '@echo off\r\necho ======================================\r\necho   Hytale Server Manager - Setup\r\necho ======================================\r\necho.\r\ncd /d "%%~dp0"\r\necho Setting up database...\r\nnode node_modules\\prisma\\build\\index.js db push\r\necho.\r\necho Setup complete!\r\necho.\r\necho Run start.bat to launch the application.\r\npause\r\n' > release-package/install.bat
+          cat > release-package/install.bat << 'ENDBAT'
+          @echo off
+          echo ======================================
+          echo   Hytale Server Manager - Setup
+          echo ======================================
+          echo.
+          cd /d "%~dp0"
+
+          echo Checking environment configuration...
+          if not exist ".env" (
+            echo Creating .env from template...
+            copy .env.example .env >nul
+          )
+
+          echo Generating secrets if needed...
+          node -e "const fs=require('fs');const crypto=require('crypto');let env=fs.readFileSync('.env','utf8');let changed=false;if(/^JWT_SECRET=$/m.test(env)){env=env.replace(/^JWT_SECRET=$/m,'JWT_SECRET='+crypto.randomBytes(64).toString('hex'));changed=true;}if(/^JWT_REFRESH_SECRET=$/m.test(env)){env=env.replace(/^JWT_REFRESH_SECRET=$/m,'JWT_REFRESH_SECRET='+crypto.randomBytes(64).toString('hex'));changed=true;}if(/^SETTINGS_ENCRYPTION_KEY=$/m.test(env)){env=env.replace(/^SETTINGS_ENCRYPTION_KEY=$/m,'SETTINGS_ENCRYPTION_KEY='+crypto.randomBytes(16).toString('hex'));changed=true;}if(changed){fs.writeFileSync('.env',env);console.log('Generated missing secrets in .env');}else{console.log('Secrets already configured.');}"
+
+          echo.
+          echo Setting up database...
+          node node_modules\prisma\build\index.js db push
+          echo.
+          echo Setup complete!
+          echo.
+          echo Run start.bat to launch the application.
+          pause
+          ENDBAT
+          sed -i 's/^          //' release-package/install.bat
+          unix2dos release-package/install.bat 2>/dev/null || sed -i 's/$/\r/' release-package/install.bat
 
           # Create install script for Linux
-          printf '#!/bin/bash\necho "======================================"\necho "  Hytale Server Manager - Setup"\necho "======================================"\necho\ncd "$(dirname "$0")"\necho "Setting up database..."\n./node_modules/.bin/prisma db push\necho\necho "Setup complete!"\necho\necho "Run ./start.sh to launch the application."\n' > release-package/install.sh
+          cat > release-package/install.sh << 'ENDSH'
+          #!/bin/bash
+          echo "======================================"
+          echo "  Hytale Server Manager - Setup"
+          echo "======================================"
+          echo
+          cd "$(dirname "$0")"
+
+          echo "Checking environment configuration..."
+          if [ ! -f ".env" ]; then
+            echo "Creating .env from template..."
+            cp .env.example .env
+          fi
+
+          echo "Generating secrets if needed..."
+          node -e "
+          const fs = require('fs');
+          const crypto = require('crypto');
+          let env = fs.readFileSync('.env', 'utf8');
+          let changed = false;
+          if (/^JWT_SECRET=$/m.test(env)) {
+            env = env.replace(/^JWT_SECRET=$/m, 'JWT_SECRET=' + crypto.randomBytes(64).toString('hex'));
+            changed = true;
+          }
+          if (/^JWT_REFRESH_SECRET=$/m.test(env)) {
+            env = env.replace(/^JWT_REFRESH_SECRET=$/m, 'JWT_REFRESH_SECRET=' + crypto.randomBytes(64).toString('hex'));
+            changed = true;
+          }
+          if (/^SETTINGS_ENCRYPTION_KEY=$/m.test(env)) {
+            env = env.replace(/^SETTINGS_ENCRYPTION_KEY=$/m, 'SETTINGS_ENCRYPTION_KEY=' + crypto.randomBytes(16).toString('hex'));
+            changed = true;
+          }
+          if (changed) {
+            fs.writeFileSync('.env', env);
+            console.log('Generated missing secrets in .env');
+          } else {
+            console.log('Secrets already configured.');
+          }
+          "
+
+          echo
+          echo "Setting up database..."
+          ./node_modules/.bin/prisma db push
+          echo
+          echo "Setup complete!"
+          echo
+          echo "Run ./start.sh to launch the application."
+          ENDSH
+          sed -i 's/^          //' release-package/install.sh
           chmod +x release-package/install.sh
 
           # Create start script for Windows
-          printf '@echo off\r\necho ======================================\r\necho   Hytale Server Manager\r\necho ======================================\r\necho.\r\ncd /d "%%~dp0"\r\nset NODE_ENV=production\r\nset HSM_BASE_PATH=%%~dp0\r\necho Starting application...\r\necho Press Ctrl+C to stop\r\necho.\r\nnode dist\\index.js\r\necho.\r\necho Application stopped.\r\npause\r\n' > release-package/start.bat
+          cat > release-package/start.bat << 'ENDBAT'
+          @echo off
+          echo ======================================
+          echo   Hytale Server Manager
+          echo ======================================
+          echo.
+          cd /d "%~dp0"
+          set NODE_ENV=production
+          set HSM_BASE_PATH=%~dp0
+          echo Starting application...
+          echo Press Ctrl+C to stop
+          echo.
+          node dist\index.js
+          echo.
+          echo Application stopped.
+          pause
+          ENDBAT
+          sed -i 's/^          //' release-package/start.bat
+          unix2dos release-package/start.bat 2>/dev/null || sed -i 's/$/\r/' release-package/start.bat
 
           # Create start script for Linux
-          printf '#!/bin/bash\necho "======================================"\necho "  Hytale Server Manager"\necho "======================================"\necho\ncd "$(dirname "$0")"\nexport NODE_ENV=production\nexport HSM_BASE_PATH="$(pwd)"\necho "Starting application..."\necho "Press Ctrl+C to stop"\necho\nnode dist/index.js\n' > release-package/start.sh
+          cat > release-package/start.sh << 'ENDSH'
+          #!/bin/bash
+          echo "======================================"
+          echo "  Hytale Server Manager"
+          echo "======================================"
+          echo
+          cd "$(dirname "$0")"
+          export NODE_ENV=production
+          export HSM_BASE_PATH="$(pwd)"
+          echo "Starting application..."
+          echo "Press Ctrl+C to stop"
+          echo
+          node dist/index.js
+          ENDSH
+          sed -i 's/^          //' release-package/start.sh
           chmod +x release-package/start.sh
 
           # Create Windows package
