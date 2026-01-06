@@ -1,0 +1,571 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  username        String   @unique
+  passwordHash    String
+  role            String   @default("viewer") // admin, moderator, viewer
+
+  // Tokens
+  refreshToken    String?
+
+  // Account Lockout
+  failedLoginAttempts Int      @default(0)
+  lockedUntil         DateTime?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastLoginAt     DateTime?
+
+  @@index([email])
+  @@index([username])
+}
+
+model Server {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  address         String
+  port            Int
+  version         String
+  maxPlayers      Int
+  gameMode        String
+  status          String   @default("stopped") // stopped, starting, running, stopping, crashed, orphaned
+
+  // Process Tracking (for persistence across manager restarts)
+  pid             Int?          // Process ID when running
+  startedAt       DateTime?     // When server process started
+  rconPort        Int?          // RCON port for remote commands
+  rconPassword    String?       // RCON password (auto-generated)
+  logFilePath     String?       // Path to server log file for tailing
+
+  // File System
+  serverPath      String
+  worldPath       String
+
+  // Backup Configuration
+  backupPath      String?  // Custom backup path (local dir or FTP remote path)
+  backupType      String   @default("local") // "local" or "ftp"
+  backupExclusions String? // JSON array of glob patterns to exclude (e.g., ["logs/*", "*.log", "crash-reports/*"])
+
+  // Adapter Configuration
+  adapterType     String   @default("java") // java, hytale
+  adapterConfig   String?  // JSON string for adapter-specific config
+  jvmArgs         String?  // JVM arguments for Java-based servers (e.g., "-Xms1G -Xmx2G")
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  mods            Mod[]
+  players         Player[]
+  backups         Backup[]
+  scheduledTasks  ScheduledTask[]
+  consoleLogs     ConsoleLog[]
+  metrics         ServerMetric[]
+  worlds          World[]
+  alerts          Alert[]
+  automationRules AutomationRule[]
+
+  // Network Relations
+  networkMemberships ServerNetworkMember[]
+  proxyForNetworks   ServerNetwork[] @relation("ProxyServer")
+
+  @@index([status])
+}
+
+model Mod {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // Modtale API Info
+  projectId       String
+  projectTitle    String
+  projectIconUrl  String?
+  versionId       String
+  versionName     String
+  classification  String   // PLUGIN, DATA, ART, SAVE, MODPACK
+
+  // Archive Info (the downloaded file before extraction)
+  archiveSize     Int      @default(0)  // Size of downloaded archive
+  fileHash        String?
+
+  // Status
+  enabled         Boolean  @default(true)
+  installedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  files           ModFile[]  // All extracted/installed files
+
+  @@index([serverId])
+  @@index([projectId])
+}
+
+model ModFile {
+  id              String   @id @default(cuid())
+  modId           String
+
+  // File Info
+  fileName        String   // e.g., "MyPlugin.jar"
+  filePath        String   // Relative path: "plugins/MyPlugin.jar"
+  fileSize        Int
+  fileType        String   // "jar", "yml", "json", "toml"
+
+  // Metadata
+  createdAt       DateTime @default(now())
+
+  // Relations
+  mod             Mod      @relation(fields: [modId], references: [id], onDelete: Cascade)
+
+  @@index([modId])
+}
+
+model Player {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // Player Info
+  uuid            String   @unique
+  username        String
+  displayName     String?
+
+  // Stats
+  firstJoined     DateTime @default(now())
+  lastSeen        DateTime @default(now())
+  playtime        Int      @default(0) // in seconds
+  isOnline        Boolean  @default(false)
+
+  // Permissions & Status
+  permissions     String?  // JSON string array
+  isBanned        Boolean  @default(false)
+  banReason       String?
+  bannedAt        DateTime?
+  bannedUntil     DateTime?
+
+  isWhitelisted   Boolean  @default(false)
+  isOperator      Boolean  @default(false)
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
+  @@index([uuid])
+  @@index([isOnline])
+}
+
+model Backup {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // Backup Info
+  name            String
+  description     String?
+  filePath        String
+  fileSize        Int
+
+  // File Statistics
+  totalFiles      Int?
+  backedUpFiles   Int?
+  skippedFiles    String?  // JSON array of {path, reason} objects
+
+  // Status
+  status          String   @default("pending") // pending, creating, completed, failed, restoring
+  error           String?
+
+  // Storage
+  storageType     String   @default("local") // "local" or "ftp"
+  remotePath      String?  // FTP remote path if stored on FTP
+
+  // Network Backup Reference (optional)
+  networkBackupId String?
+
+  // Automation Reference (for backup rotation)
+  automationRuleId String?
+
+  // Scheduled Task Reference (for backup rotation)
+  scheduledTaskId String?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  networkBackup   NetworkBackup? @relation(fields: [networkBackupId], references: [id], onDelete: SetNull)
+  automationRule  AutomationRule? @relation(fields: [automationRuleId], references: [id], onDelete: SetNull)
+  scheduledTask   ScheduledTask? @relation(fields: [scheduledTaskId], references: [id], onDelete: SetNull)
+
+  @@index([serverId])
+  @@index([createdAt])
+  @@index([networkBackupId])
+  @@index([automationRuleId])
+  @@index([scheduledTaskId])
+}
+
+model ScheduledTask {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // Task Info
+  name            String
+  type            String   // backup, restart, command
+  enabled         Boolean  @default(true)
+
+  // Schedule (cron format)
+  cronExpression  String
+
+  // Task Data
+  taskData        String?  // JSON string with task-specific data
+
+  // Backup Rotation Settings (for backup tasks)
+  backupLimit     Int      @default(10)  // Max backups to keep (0 = unlimited)
+
+  // Execution Info
+  lastRun         DateTime?
+  nextRun         DateTime?
+  lastStatus      String?  // success, failed
+  lastError       String?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  backups         Backup[]
+
+  @@index([serverId])
+  @@index([enabled])
+}
+
+model ConsoleLog {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // Log Info
+  timestamp       DateTime @default(now())
+  level           String   // info, warn, error, debug
+  message         String
+  source          String?  // system, server, plugin
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
+  @@index([timestamp])
+  @@index([level])
+}
+
+model ServerMetric {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // Metric Data
+  timestamp       DateTime @default(now())
+  cpuUsage        Float    // 0-100
+  memoryUsage     Float    // 0-100
+  memoryUsedMB    Int
+  memoryTotalMB   Int
+  diskUsage       Float    // 0-100
+  diskUsedGB      Float
+  diskTotalGB     Float
+  playerCount     Int
+  tps             Float?   // Ticks per second (if available)
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
+  @@index([timestamp])
+}
+
+model HostMetric {
+  id              String   @id @default(cuid())
+
+  // Metric Data
+  timestamp       DateTime @default(now())
+  cpuUsage        Float    // 0-100 (host CPU usage)
+  cpuCores        Int      // Number of CPU cores
+  memoryUsage     Float    // 0-100 (host memory usage)
+  memoryUsedGB    Float    // Used memory in GB
+  memoryTotalGB   Float    // Total memory in GB
+
+  @@index([timestamp])
+}
+
+model World {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // World Info
+  name            String
+  folderPath      String
+  sizeBytes       Int
+  isActive        Boolean  @default(false)
+
+  // Metadata
+  description     String?
+  createdAt       DateTime @default(now())
+  lastPlayed      DateTime?
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
+  @@index([isActive])
+}
+
+model Alert {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // Alert Info
+  type            String   // server_down, high_cpu, high_memory, player_join, player_leave, custom
+  severity        String   // info, warning, critical
+  title           String
+  message         String
+
+  // Status
+  isRead          Boolean  @default(false)
+  isResolved      Boolean  @default(false)
+
+  // Metadata
+  metadata        String?  // JSON string with additional data
+  createdAt       DateTime @default(now())
+  resolvedAt      DateTime?
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@index([serverId])
+  @@index([createdAt])
+  @@index([isRead])
+  @@index([isResolved])
+  @@index([severity])
+}
+
+model AutomationRule {
+  id              String   @id @default(cuid())
+  serverId        String
+
+  // Rule Info
+  name            String
+  description     String?
+  enabled         Boolean  @default(true)
+
+  // Trigger
+  triggerType     String   // scheduled, event, condition
+  triggerConfig   String   // JSON string: { cron, event, thresholds }
+
+  // Conditions (optional)
+  conditions      String?  // JSON string: [{ type, operator, value }]
+
+  // Actions
+  actions         String   // JSON string: [{ type, config }]
+
+  // Backup Rotation Settings
+  backupLimit     Int      @default(10)  // Max backups to keep for this automation (0 = unlimited)
+
+  // Execution Info
+  lastTriggered   DateTime?
+  lastStatus      String?  // success, failed
+  lastError       String?
+  executionCount  Int      @default(0)
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  server          Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  backups         Backup[]
+
+  @@index([serverId])
+  @@index([enabled])
+  @@index([triggerType])
+}
+
+// ==========================================
+// Server Networks
+// ==========================================
+
+model ServerNetwork {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  description     String?
+
+  // Network Type: "logical" (organization) or "proxy" (proxy-based network)
+  networkType     String   @default("logical")
+
+  // Proxy Configuration (only for networkType="proxy")
+  proxyServerId   String?
+  proxyConfig     String?  // JSON: { startOrder: "proxy_first"|"backends_first" }
+
+  // Display
+  color           String?  // Hex color for UI grouping
+  sortOrder       Int      @default(0)
+
+  // Settings
+  bulkActionsEnabled Boolean @default(true)
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  members         ServerNetworkMember[]
+  backups         NetworkBackup[]
+  proxyServer     Server?  @relation("ProxyServer", fields: [proxyServerId], references: [id], onDelete: SetNull)
+
+  @@index([networkType])
+  @@index([sortOrder])
+}
+
+model ServerNetworkMember {
+  id              String   @id @default(cuid())
+  networkId       String
+  serverId        String
+
+  // Role within network: "proxy", "member", or "backend"
+  role            String   @default("member")
+
+  // Display order within network
+  sortOrder       Int      @default(0)
+
+  // Metadata
+  addedAt         DateTime @default(now())
+
+  // Relations
+  network         ServerNetwork @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  server          Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@unique([networkId, serverId])
+  @@index([networkId])
+  @@index([serverId])
+}
+
+model NetworkBackup {
+  id              String   @id @default(cuid())
+  networkId       String
+
+  // Backup Info
+  name            String
+  description     String?
+  status          String   @default("pending")  // pending, creating, completed, failed
+  error           String?
+
+  // Metadata
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  // Relations
+  network         ServerNetwork @relation(fields: [networkId], references: [id], onDelete: Cascade)
+  serverBackups   Backup[]
+
+  @@index([networkId])
+  @@index([createdAt])
+}
+
+// ==========================================
+// Permission System
+// ==========================================
+
+model Permission {
+  id              String   @id @default(cuid())
+  code            String   @unique  // e.g., "servers:start", "backups:create"
+  name            String            // Human-readable name
+  description     String?
+  category        String            // servers, backups, users, settings, etc.
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@index([category])
+}
+
+model RolePermission {
+  id              String   @id @default(cuid())
+  role            String   // admin, moderator, viewer
+  permissionId    String
+  granted         Boolean  @default(true)
+
+  // Relations
+  permission      Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@index([role])
+}
+
+// ==========================================
+// Global Settings
+// ==========================================
+
+model GlobalSetting {
+  id              String   @id @default(cuid())
+  key             String   @unique  // e.g., "discord.webhookUrl"
+  value           String            // Encrypted for sensitive data
+  encrypted       Boolean  @default(false)
+  category        String            // discord, ftp, modtale, general
+
+  // Metadata
+  updatedAt       DateTime @updatedAt
+  updatedBy       String?           // User ID who last updated
+
+  @@index([category])
+}
+
+// ==========================================
+// Activity Log
+// ==========================================
+
+model ActivityLog {
+  id              String   @id @default(cuid())
+
+  // Who performed the action
+  userId          String
+  username        String            // Denormalized for display
+  userRole        String            // Role at time of action
+
+  // What action was performed
+  action          String            // e.g., "server:start", "backup:create"
+  actionCategory  String            // server, backup, player, mod, user, settings, auth
+
+  // Which resource was affected
+  resourceType    String            // server, backup, player, mod, user, network, template, version
+  resourceId      String?           // ID of the affected resource (null for non-resource actions)
+  resourceName    String?           // Denormalized name for display
+
+  // Result of the action
+  status          String   @default("success") // success, failed
+  errorMessage    String?           // Error message if failed
+
+  // Additional context
+  details         String?           // JSON for additional context (before/after, etc.)
+
+  // Request info
+  ipAddress       String?
+  userAgent       String?
+
+  // Timestamp
+  timestamp       DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([actionCategory])
+  @@index([resourceType, resourceId])
+  @@index([timestamp])
+}

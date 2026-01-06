@@ -1,0 +1,240 @@
+import { useState, useRef, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '../../components/ui';
+import { Send, Download, Trash2 } from 'lucide-react';
+import { useToast } from '../../stores/toastStore';
+import api from '../../services/api';
+import websocket from '../../services/websocket';
+
+interface LogEntry {
+  id?: string;
+  timestamp: Date;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+  source?: string;
+}
+
+interface Server {
+  id: string;
+  name: string;
+  status: string;
+}
+
+export const ConsolePage = () => {
+  const toast = useToast();
+  const [servers, setServers] = useState<Server[]>([]);
+  const [selectedServer, setSelectedServer] = useState<string>('');
+  const [command, setCommand] = useState('');
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const consoleEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch servers on mount
+  useEffect(() => {
+    fetchServers();
+  }, []);
+
+  // Connect to WebSocket for live logs when server changes
+  useEffect(() => {
+    if (!selectedServer) return;
+
+    const unsubscribe = websocket.subscribeToConsole(selectedServer, {
+      onHistoricalLogs: (data) => {
+        // Set initial historical logs
+        const transformedLogs = data.logs.map((log: any) => ({
+          id: log.id,
+          timestamp: new Date(log.timestamp),
+          level: log.level,
+          message: log.message,
+          source: log.source,
+        }));
+        setLogs(transformedLogs);
+      },
+      onLog: (data) => {
+        // Append new log
+        const newLog = {
+          timestamp: new Date(data.log.timestamp),
+          level: data.log.level,
+          message: data.log.message,
+          source: data.log.source,
+        };
+        setLogs((prev) => [...prev, newLog]);
+      },
+      onCommandResponse: (data) => {
+        // Show command response
+        if (data.response.success) {
+          toast.success('Command executed', data.response.output);
+        } else {
+          toast.error('Command failed', data.response.error || 'Unknown error');
+        }
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [selectedServer]);
+
+  // Auto-scroll to bottom when logs update
+  useEffect(() => {
+    consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  const fetchServers = async () => {
+    try {
+      const data = await api.getServers<Server>();
+      setServers(data.map((s) => ({ id: s.id, name: s.name, status: s.status })));
+
+      // Select first server by default
+      if (data.length > 0 && !selectedServer) {
+        setSelectedServer(data[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching servers:', error);
+      toast.error('Failed to load servers', 'Please try again later');
+    }
+  };
+
+  const handleSendCommand = () => {
+    if (!command.trim()) return;
+
+    // Send command via WebSocket
+    websocket.sendCommand(selectedServer, command);
+    setCommand('');
+  };
+
+  const handleClearConsole = () => {
+    setLogs([]);
+    toast.info('Console cleared');
+  };
+
+  const handleDownloadLogs = () => {
+    const logText = logs
+      .map(
+        (log) =>
+          `[${new Date(log.timestamp).toISOString()}] [${log.level.toUpperCase()}] [${log.source || 'Server'}] ${log.message}`
+      )
+      .join('\n');
+
+    const blob = new Blob([logText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `console-${selectedServer}-${Date.now()}.log`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success('Logs downloaded');
+  };
+
+  const getLogLevelColor = (level: string) => {
+    switch (level.toLowerCase()) {
+      case 'error': return 'text-danger';
+      case 'warn': return 'text-warning';
+      case 'debug': return 'text-accent-secondary';
+      default: return 'text-text-light-primary dark:text-text-primary';
+    }
+  };
+
+  const selectedServerData = servers.find(s => s.id === selectedServer);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-heading font-bold text-text-light-primary dark:text-text-primary">Console</h1>
+          <p className="text-text-light-muted dark:text-text-muted mt-1">Monitor and control your servers</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" icon={<Download size={16} />} onClick={handleDownloadLogs} disabled={logs.length === 0}>
+            Download Logs
+          </Button>
+          <Button variant="ghost" size="sm" icon={<Trash2 size={16} />} onClick={handleClearConsole} disabled={logs.length === 0}>
+            Clear Console
+          </Button>
+        </div>
+      </div>
+
+      {/* Server Selector */}
+      <div className="flex gap-2 flex-wrap">
+        {servers.map((server) => (
+          <button
+            key={server.id}
+            onClick={() => setSelectedServer(server.id)}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              selectedServer === server.id
+                ? 'bg-accent-primary text-black'
+                : 'bg-white dark:bg-gray-100 dark:bg-primary-bg-secondary text-text-light-muted dark:text-text-muted hover:text-text-light-primary dark:text-text-primary'
+            }`}
+          >
+            {server.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Console */}
+      <Card variant="glass">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Live Console - {selectedServerData?.name || 'Select a server'}</CardTitle>
+            {selectedServerData && (
+              <Badge variant={selectedServerData.status === 'running' ? 'success' : 'default'}>
+                {selectedServerData.status}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Console Output */}
+          <div className="bg-white dark:bg-primary-bg rounded-lg p-4 font-mono text-sm h-96 overflow-y-auto custom-scrollbar">
+            {logs.length === 0 ? (
+              <div className="text-text-light-muted dark:text-text-muted text-center py-8">
+                {selectedServerData?.status === 'running'
+                  ? 'Waiting for logs...'
+                  : 'Start the server to see console output'}
+              </div>
+            ) : (
+              logs.map((log, index) => (
+                <div key={log.id || index} className="mb-1 flex gap-2">
+                  <span className="text-text-light-muted dark:text-text-muted">
+                    [{new Date(log.timestamp).toLocaleTimeString()}]
+                  </span>
+                  <span className={getLogLevelColor(log.level)}>[{log.level.toUpperCase()}]</span>
+                  <span className="text-accent-secondary">[{log.source || 'Server'}]</span>
+                  <span className="text-text-light-primary dark:text-text-primary">{log.message}</span>
+                </div>
+              ))
+            )}
+            <div ref={consoleEndRef} />
+          </div>
+
+          {/* Command Input */}
+          <div className="mt-4 flex gap-2">
+            <input
+              type="text"
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendCommand()}
+              placeholder="Enter command..."
+              className="flex-1 px-4 py-2 bg-white dark:bg-primary-bg border border-gray-300 dark:border-gray-700 rounded-lg text-text-light-primary dark:text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-primary/50 font-mono"
+              disabled={selectedServerData?.status !== 'running'}
+            />
+            <Button
+              variant="primary"
+              icon={<Send size={18} />}
+              onClick={handleSendCommand}
+              disabled={selectedServerData?.status !== 'running' || !command.trim()}
+            >
+              Send
+            </Button>
+          </div>
+
+          {selectedServerData?.status !== 'running' && (
+            <p className="text-warning text-sm mt-2">Server must be running to execute commands</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};

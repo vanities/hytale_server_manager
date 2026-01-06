@@ -1,0 +1,82 @@
+---
+import Button from '../ui/Button.astro';
+---
+
+<section class="relative overflow-hidden">
+  <!-- Background -->
+  <div class="absolute inset-0 hero-gradient"></div>
+  <div class="absolute inset-0 bg-grid-pattern opacity-50"></div>
+
+  <!-- Decorative elements -->
+  <div class="absolute top-20 left-10 w-72 h-72 bg-accent-primary/10 rounded-full blur-3xl"></div>
+  <div class="absolute bottom-20 right-10 w-96 h-96 bg-accent-secondary/10 rounded-full blur-3xl"></div>
+
+  <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32 lg:py-40">
+    <div class="text-center max-w-4xl mx-auto">
+      <!-- Badge -->
+      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-primary/10 border border-accent-primary/20 mb-8">
+        <span class="w-2 h-2 rounded-full bg-accent-primary animate-pulse"></span>
+        <span class="text-sm font-medium text-accent-primary">Open Source & Free</span>
+      </div>
+
+      <!-- Headline -->
+      <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-heading font-bold mb-6">
+        <span class="text-text-light-primary dark:text-text-primary">Self-Hosted</span>
+        <br />
+        <span class="text-gradient">Hytale Server</span>
+        <br />
+        <span class="text-text-light-primary dark:text-text-primary">Management</span>
+      </h1>
+
+      <!-- Subheadline -->
+      <p class="text-lg sm:text-xl text-text-light-muted dark:text-text-muted max-w-2xl mx-auto mb-10">
+        The all-in-one dashboard to monitor, manage, and scale your Hytale servers.
+        Real-time insights, automated backups, and mod marketplace integration.
+      </p>
+
+      <!-- CTAs -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+        <Button href="/hytale_server_manager/docs/getting-started/installation" size="lg">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" x2="12" y1="15" y2="3" />
+          </svg>
+          Get Started
+        </Button>
+      </div>
+
+      <!-- Stats -->
+      <div class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div class="text-center">
+          <div class="text-3xl sm:text-4xl font-heading font-bold text-gradient">∞</div>
+          <div class="text-sm text-text-light-muted dark:text-text-muted mt-1">Mods Available</div>
+        </div>
+        <div class="text-center">
+          <div class="text-3xl sm:text-4xl font-heading font-bold text-gradient">Real-time</div>
+          <div class="text-sm text-text-light-muted dark:text-text-muted mt-1">Monitoring</div>
+        </div>
+        <div class="text-center">
+          <div class="text-3xl sm:text-4xl font-heading font-bold text-gradient">100%</div>
+          <div class="text-sm text-text-light-muted dark:text-text-muted mt-1">Open Source</div>
+        </div>
+        <div class="text-center">
+          <div class="text-3xl sm:text-4xl font-heading font-bold text-gradient">Multi</div>
+          <div class="text-sm text-text-light-muted dark:text-text-muted mt-1">Platform</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom gradient fade -->
+  <div class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-primary-light-bg dark:from-primary-bg to-transparent"></div>
+</section>

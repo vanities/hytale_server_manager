@@ -1,0 +1,406 @@
+#!/usr/bin/env node
+/**
+ * Hytale Server Manager - Release Build Script
+ *
+ * This script builds release packages for Windows and Linux.
+ * It will:
+ * - Build the frontend
+ * - Build the backend
+ * - Create release packages (zip for Windows, tar.gz for Linux)
+ *
+ * Usage: node scripts/build-release.js [OPTIONS]
+ *
+ * Options:
+ *   --version VERSION   Set the release version (e.g., 1.0.0)
+ *   --windows-only      Only build Windows package
+ *   --linux-only        Only build Linux package
+ *   --skip-build        Skip build step, just package existing builds
+ *   --output DIR        Output directory for packages (default: ./releases)
+ */
+
+const fs = require('fs-extra');
+const path = require('path');
+const { execSync } = require('child_process');
+const archiver = require('archiver');
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+const options = {
+  version: null,
+  windowsOnly: false,
+  linuxOnly: false,
+  skipBuild: false,
+  outputDir: './releases',
+};
+
+for (let i = 0; i < args.length; i++) {
+  switch (args[i]) {
+    case '--version':
+      options.version = args[++i];
+      break;
+    case '--windows-only':
+      options.windowsOnly = true;
+      break;
+    case '--linux-only':
+      options.linuxOnly = true;
+      break;
+    case '--skip-build':
+      options.skipBuild = true;
+      break;
+    case '--output':
+      options.outputDir = args[++i];
+      break;
+    case '--help':
+      console.log(`
+Hytale Server Manager - Release Build Script
+
+Usage: node scripts/build-release.js [OPTIONS]
+
+Options:
+  --version VERSION   Set the release version (e.g., 1.0.0)
+  --windows-only      Only build Windows package
+  --linux-only        Only build Linux package
+  --skip-build        Skip build step, just package existing builds
+  --output DIR        Output directory for packages (default: ./releases)
+  --help              Show this help message
+`);
+      process.exit(0);
+  }
+}
+
+// Paths
+const rootDir = path.resolve(__dirname, '..');
+const frontendDir = path.join(rootDir, 'frontend');
+const serverDir = path.join(rootDir, 'server');
+const distDir = path.join(frontendDir, 'dist');
+const serverDistDir = path.join(serverDir, 'dist');
+const outputDir = path.resolve(options.outputDir);
+const tempDir = path.join(outputDir, 'temp');
+
+// Colors for console output
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  cyan: '\x1b[36m',
+};
+
+function log(message, color = 'reset') {
+  console.log(`${colors[color]}${message}${colors.reset}`);
+}
+
+function logStep(message) {
+  log(`\n▶ ${message}`, 'cyan');
+}
+
+function logSuccess(message) {
+  log(`✓ ${message}`, 'green');
+}
+
+function logError(message) {
+  log(`✗ ${message}`, 'red');
+}
+
+function exec(command, cwd = rootDir) {
+  log(`  $ ${command}`, 'yellow');
+  try {
+    execSync(command, { cwd, stdio: 'inherit' });
+  } catch (error) {
+    logError(`Command failed: ${command}`);
+    process.exit(1);
+  }
+}
+
+async function getVersion() {
+  if (options.version) {
+    return options.version;
+  }
+
+  // Read from server package.json
+  const packageJson = await fs.readJson(path.join(serverDir, 'package.json'));
+  return packageJson.version;
+}
+
+async function updateVersion(version) {
+  logStep(`Updating version to ${version}`);
+
+  // Update server package.json
+  const serverPkg = await fs.readJson(path.join(serverDir, 'package.json'));
+  serverPkg.version = version;
+  await fs.writeJson(path.join(serverDir, 'package.json'), serverPkg, { spaces: 2 });
+
+  // Update frontend package.json
+  const frontendPkg = await fs.readJson(path.join(frontendDir, 'package.json'));
+  frontendPkg.version = version;
+  await fs.writeJson(path.join(frontendDir, 'package.json'), frontendPkg, { spaces: 2 });
+
+  // Update config.ts VERSION constant
+  const configPath = path.join(serverDir, 'src', 'config.ts');
+  let configContent = await fs.readFile(configPath, 'utf-8');
+  configContent = configContent.replace(
+    /export const VERSION = '[^']*'/,
+    `export const VERSION = '${version}'`
+  );
+  await fs.writeFile(configPath, configContent);
+
+  logSuccess(`Version updated to ${version}`);
+}
+
+async function buildFrontend() {
+  logStep('Building frontend...');
+  exec('npm run build', frontendDir);
+  logSuccess('Frontend built');
+}
+
+async function buildBackend() {
+  logStep('Building backend...');
+  exec('npm run build', serverDir);
+  logSuccess('Backend built');
+}
+
+async function createPackageBase(packageDir) {
+  logStep('Creating package base...');
+
+  // Create directory structure
+  await fs.ensureDir(packageDir);
+  await fs.ensureDir(path.join(packageDir, 'public'));
+  await fs.ensureDir(path.join(packageDir, 'prisma'));
+  await fs.ensureDir(path.join(packageDir, 'data', 'db'));
+  await fs.ensureDir(path.join(packageDir, 'data', 'logs'));
+  await fs.ensureDir(path.join(packageDir, 'data', 'servers'));
+  await fs.ensureDir(path.join(packageDir, 'data', 'backups'));
+
+  // Copy backend dist
+  await fs.copy(serverDistDir, path.join(packageDir, 'dist'));
+
+  // Copy frontend dist
+  await fs.copy(distDir, path.join(packageDir, 'public'));
+
+  // Copy Prisma files
+  await fs.copy(
+    path.join(serverDir, 'prisma', 'schema.prisma'),
+    path.join(packageDir, 'prisma', 'schema.prisma')
+  );
+
+  // Copy package.json (without devDependencies)
+  const serverPkg = await fs.readJson(path.join(serverDir, 'package.json'));
+  delete serverPkg.devDependencies;
+  serverPkg.scripts = {
+    start: 'node dist/index.js',
+    'prisma:generate': 'prisma generate',
+    'prisma:push': 'prisma db push',
+  };
+  await fs.writeJson(path.join(packageDir, 'package.json'), serverPkg, { spaces: 2 });
+
+  // Copy package-lock.json
+  await fs.copy(
+    path.join(serverDir, 'package-lock.json'),
+    path.join(packageDir, 'package-lock.json')
+  );
+
+  logSuccess('Package base created');
+}
+
+async function createWindowsPackage(version) {
+  logStep('Creating Windows package...');
+
+  const packageName = `hytale-server-manager-${version}-windows`;
+  const packageDir = path.join(tempDir, packageName);
+
+  // Create base package
+  await createPackageBase(packageDir);
+
+  // Copy Windows scripts
+  await fs.copy(
+    path.join(rootDir, 'scripts', 'windows'),
+    path.join(packageDir, 'scripts')
+  );
+
+  // Create simple batch files in root
+  await fs.writeFile(
+    path.join(packageDir, 'start.bat'),
+    `@echo off
+cd /d "%~dp0"
+set NODE_ENV=production
+set HSM_BASE_PATH=%~dp0
+echo Starting Hytale Server Manager...
+node dist\\index.js
+pause
+`
+  );
+
+  await fs.writeFile(
+    path.join(packageDir, 'install.bat'),
+    `@echo off
+echo Running installation script...
+PowerShell -ExecutionPolicy Bypass -File "%~dp0scripts\\install.ps1" -InstallPath "%~dp0"
+pause
+`
+  );
+
+  // Create zip
+  const zipPath = path.join(outputDir, `${packageName}.zip`);
+  await createZip(packageDir, zipPath);
+
+  logSuccess(`Windows package created: ${zipPath}`);
+  return zipPath;
+}
+
+async function createLinuxPackage(version) {
+  logStep('Creating Linux package...');
+
+  const packageName = `hytale-server-manager-${version}-linux`;
+  const packageDir = path.join(tempDir, packageName);
+
+  // Create base package
+  await createPackageBase(packageDir);
+
+  // Copy Linux scripts
+  await fs.copy(
+    path.join(rootDir, 'scripts', 'linux'),
+    path.join(packageDir, 'scripts')
+  );
+
+  // Create simple shell scripts in root
+  await fs.writeFile(
+    path.join(packageDir, 'start.sh'),
+    `#!/bin/bash
+cd "$(dirname "$0")"
+export NODE_ENV=production
+export HSM_BASE_PATH="$(pwd)"
+echo "Starting Hytale Server Manager..."
+node dist/index.js
+`
+  );
+
+  await fs.writeFile(
+    path.join(packageDir, 'install.sh'),
+    `#!/bin/bash
+echo "Running installation script..."
+sudo bash "$(dirname "$0")/scripts/install.sh" -p "$(dirname "$0")"
+`
+  );
+
+  // Make scripts executable
+  await fs.chmod(path.join(packageDir, 'start.sh'), 0o755);
+  await fs.chmod(path.join(packageDir, 'install.sh'), 0o755);
+
+  const scriptsDir = path.join(packageDir, 'scripts');
+  const scripts = await fs.readdir(scriptsDir);
+  for (const script of scripts) {
+    if (script.endsWith('.sh')) {
+      await fs.chmod(path.join(scriptsDir, script), 0o755);
+    }
+  }
+
+  // Create tar.gz
+  const tarPath = path.join(outputDir, `${packageName}.tar.gz`);
+  await createTarGz(packageDir, tarPath, packageName);
+
+  logSuccess(`Linux package created: ${tarPath}`);
+  return tarPath;
+}
+
+function createZip(sourceDir, outputPath) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(outputPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    output.on('close', resolve);
+    archive.on('error', reject);
+
+    archive.pipe(output);
+    archive.directory(sourceDir, path.basename(sourceDir));
+    archive.finalize();
+  });
+}
+
+function createTarGz(sourceDir, outputPath, dirName) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(outputPath);
+    const archive = archiver('tar', { gzip: true, gzipOptions: { level: 9 } });
+
+    output.on('close', resolve);
+    archive.on('error', reject);
+
+    archive.pipe(output);
+    archive.directory(sourceDir, dirName);
+    archive.finalize();
+  });
+}
+
+async function cleanup() {
+  logStep('Cleaning up...');
+  await fs.remove(tempDir);
+  logSuccess('Cleanup complete');
+}
+
+async function main() {
+  console.log(`
+${colors.bright}╔════════════════════════════════════════════╗
+║   Hytale Server Manager - Release Builder  ║
+╚════════════════════════════════════════════╝${colors.reset}
+`);
+
+  try {
+    // Get version
+    const version = await getVersion();
+    log(`Building version: ${version}`, 'bright');
+
+    // Update version in source files
+    if (options.version) {
+      await updateVersion(version);
+    }
+
+    // Build
+    if (!options.skipBuild) {
+      await buildFrontend();
+      await buildBackend();
+    }
+
+    // Create output directory
+    await fs.ensureDir(outputDir);
+    await fs.ensureDir(tempDir);
+
+    // Create packages
+    const packages = [];
+
+    if (!options.linuxOnly) {
+      packages.push(await createWindowsPackage(version));
+    }
+
+    if (!options.windowsOnly) {
+      packages.push(await createLinuxPackage(version));
+    }
+
+    // Cleanup
+    await cleanup();
+
+    // Summary
+    console.log(`
+${colors.green}╔════════════════════════════════════════════╗
+║           Build Complete!                   ║
+╚════════════════════════════════════════════╝${colors.reset}
+
+Version: ${version}
+Output:  ${outputDir}
+
+Packages created:
+${packages.map((p) => `  - ${path.basename(p)}`).join('\n')}
+
+To create a GitHub release:
+  1. Create a new release at: https://github.com/nebula-codes/hytale_server_manager/releases/new
+  2. Tag: v${version}
+  3. Upload the package files above
+  4. Publish the release
+`);
+  } catch (error) {
+    logError(`Build failed: ${error.message}`);
+    console.error(error);
+    process.exit(1);
+  }
+}
+
+main();

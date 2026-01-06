@@ -1,0 +1,77 @@
+---
+import Button from '../ui/Button.astro';
+---
+
+<section class="section-padding bg-primary-light-bg-secondary dark:bg-primary-bg-secondary">
+  <div class="max-w-7xl mx-auto container-padding">
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-accent-primary/10 via-primary-bg-secondary to-accent-secondary/10 border border-gray-800/50 p-8 md:p-12 lg:p-16">
+      <!-- Decorative elements -->
+      <div class="absolute top-0 right-0 w-64 h-64 bg-accent-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+      <div class="absolute bottom-0 left-0 w-64 h-64 bg-accent-secondary/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+
+      <div class="relative text-center max-w-3xl mx-auto">
+        <h2 class="text-3xl sm:text-4xl font-heading font-bold text-text-light-primary dark:text-text-primary mb-4">
+          Ready to Take Control?
+        </h2>
+        <p class="text-lg text-text-light-muted dark:text-text-muted mb-8">
+          Join server administrators who trust HytalePanel for their server management needs.
+          Free, open-source, and ready to deploy.
+        </p>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <Button href="/hytale_server_manager/docs/getting-started/installation" size="lg">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="w-5 h-5"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
+            Download Now
+          </Button>
+          <Button
+            href="https://github.com/nebula-codes/hytale_server_manager"
+            variant="secondary"
+            size="lg"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              class="w-5 h-5"
+            >
+              <path
+                d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+              ></path>
+            </svg>
+            View on GitHub
+          </Button>
+        </div>
+
+        <p class="mt-6 text-sm text-text-light-muted dark:text-text-muted">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="inline w-4 h-4 mr-1"
+          >
+            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+            <path d="m9 12 2 2 4-4" />
+          </svg>
+          No credit card required. Self-hosted on your own infrastructure.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>

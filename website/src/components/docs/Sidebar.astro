@@ -1,0 +1,75 @@
+---
+import { getCollection } from 'astro:content';
+
+interface Props {
+  currentCategory?: string;
+}
+
+const { currentCategory } = Astro.props;
+
+const docs = await getCollection('docs');
+
+const categories = [
+  {
+    slug: 'getting-started',
+    title: 'Getting Started',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  },
+  {
+    slug: 'features',
+    title: 'Features',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>`,
+  },
+  {
+    slug: 'guides',
+    title: 'Guides',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>`,
+  },
+];
+
+const getDocsForCategory = (category: string) => {
+  return docs
+    .filter((doc) => doc.data.category === category)
+    .sort((a, b) => a.data.order - b.data.order);
+};
+
+const currentPath = Astro.url.pathname;
+---
+
+<nav class="space-y-6">
+  {categories.map((category) => {
+    const categoryDocs = getDocsForCategory(category.slug);
+    const isExpanded = currentCategory === category.slug || categoryDocs.some(doc => currentPath.includes(doc.slug));
+
+    return (
+      <div>
+        <div class="flex items-center gap-2 text-sm font-semibold text-text-light-primary dark:text-text-primary mb-2">
+          <span class="text-accent-primary" set:html={category.icon} />
+          {category.title}
+        </div>
+        <ul class="space-y-1 ml-6">
+          {categoryDocs.map((doc) => {
+            const docPath = `/hytale_server_manager/docs/${doc.slug}`;
+            const isActive = currentPath === docPath || currentPath === `${docPath}/`;
+
+            return (
+              <li>
+                <a
+                  href={docPath}
+                  class:list={[
+                    'block py-1.5 px-3 text-sm rounded-lg transition-colors',
+                    isActive
+                      ? 'bg-accent-primary/10 text-accent-primary font-medium'
+                      : 'text-text-light-muted dark:text-text-muted hover:text-text-light-primary dark:hover:text-text-primary hover:bg-gray-100 dark:hover:bg-primary-bg-secondary',
+                  ]}
+                >
+                  {doc.data.title}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  })}
+</nav>

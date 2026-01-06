@@ -1,0 +1,108 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import DocsSidebar from '../components/docs/Sidebar.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  category: string;
+}
+
+const { title, description, category } = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="lg:grid lg:grid-cols-[250px_1fr] lg:gap-8">
+      <!-- Sidebar -->
+      <aside class="hidden lg:block">
+        <div class="sticky top-24">
+          <DocsSidebar currentCategory={category} />
+        </div>
+      </aside>
+
+      <!-- Main content -->
+      <main class="min-w-0">
+        <article class="prose max-w-none">
+          <h1 class="text-3xl sm:text-4xl font-heading font-bold text-text-light-primary dark:text-text-primary mb-4">
+            {title}
+          </h1>
+          <p class="text-lg text-text-light-muted dark:text-text-muted mb-8">
+            {description}
+          </p>
+          <div class="border-t border-gray-200 dark:border-gray-800 pt-8">
+            <slot />
+          </div>
+        </article>
+      </main>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .prose :global(h2) {
+    @apply text-2xl font-heading font-semibold text-text-light-primary dark:text-text-primary mt-8 mb-4;
+  }
+
+  .prose :global(h3) {
+    @apply text-xl font-heading font-semibold text-text-light-primary dark:text-text-primary mt-6 mb-3;
+  }
+
+  .prose :global(p) {
+    @apply text-text-light-primary dark:text-text-primary mb-4 leading-relaxed;
+  }
+
+  .prose :global(ul),
+  .prose :global(ol) {
+    @apply my-4 ml-6 text-text-light-primary dark:text-text-primary;
+  }
+
+  .prose :global(li) {
+    @apply my-2;
+  }
+
+  .prose :global(ul) {
+    @apply list-disc;
+  }
+
+  .prose :global(ol) {
+    @apply list-decimal;
+  }
+
+  .prose :global(a) {
+    @apply text-accent-primary hover:text-accent-secondary transition-colors underline;
+  }
+
+  .prose :global(code) {
+    @apply bg-gray-100 dark:bg-primary-bg-secondary px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+
+  .prose :global(pre) {
+    @apply bg-gray-900 dark:bg-primary-bg rounded-lg p-4 overflow-x-auto my-4;
+  }
+
+  .prose :global(pre code) {
+    @apply bg-transparent p-0 text-gray-100;
+  }
+
+  .prose :global(blockquote) {
+    @apply border-l-4 border-accent-primary pl-4 my-4 italic text-text-light-muted dark:text-text-muted;
+  }
+
+  .prose :global(table) {
+    @apply w-full my-4 border-collapse;
+  }
+
+  .prose :global(th),
+  .prose :global(td) {
+    @apply border border-gray-200 dark:border-gray-800 px-4 py-2 text-left;
+  }
+
+  .prose :global(th) {
+    @apply bg-gray-100 dark:bg-primary-bg-secondary font-semibold;
+  }
+
+  .prose :global(img) {
+    @apply rounded-lg my-4;
+  }
+</style>

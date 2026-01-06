@@ -1,0 +1,31 @@
+{
+  "port": 3001,
+  "host": "0.0.0.0",
+  "corsOrigin": "http://localhost:5173",
+  "logLevel": "info",
+  "logToFile": true,
+  "jwtExpiresIn": "7d",
+  "dataPath": "./data",
+  "serversBasePath": "./data/servers",
+  "backupsBasePath": "./data/backups",
+  "logsPath": "./data/logs",
+  "metricsRetentionDays": 30,
+  "discord": {
+    "enabled": false,
+    "webhookUrl": "",
+    "username": "Hytale Server Manager"
+  },
+  "ftp": {
+    "enabled": false,
+    "host": "",
+    "port": 21,
+    "username": "",
+    "password": "",
+    "secure": false
+  },
+  "updates": {
+    "checkOnStartup": true,
+    "autoDownload": false,
+    "githubRepo": "nebula-codes/hytale_server_manager"
+  }
+}

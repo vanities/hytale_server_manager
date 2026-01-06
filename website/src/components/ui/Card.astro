@@ -1,0 +1,24 @@
+---
+interface Props {
+  variant?: 'default' | 'glass';
+  hover?: boolean;
+  class?: string;
+}
+
+const { variant = 'default', hover = false, class: className = '' } = Astro.props;
+
+const baseClasses = 'rounded-xl transition-all duration-300';
+
+const variantClasses = {
+  default: 'bg-white dark:bg-primary-bg-secondary border border-gray-200 dark:border-gray-800',
+  glass: 'glass-card',
+};
+
+const hoverClasses = hover ? 'hover:border-accent-primary/50 hover:-translate-y-1 hover:shadow-xl hover:shadow-accent-primary/10' : '';
+
+const classes = [baseClasses, variantClasses[variant], hoverClasses, className].join(' ');
+---
+
+<div class={classes}>
+  <slot />
+</div>

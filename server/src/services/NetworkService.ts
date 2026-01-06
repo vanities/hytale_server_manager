@@ -1,0 +1,702 @@
+import { PrismaClient, ServerNetwork as PrismaNetwork } from '@prisma/client';
+import { ServerService } from './ServerService';
+import { BackupService } from './BackupService';
+import {
+  NetworkType,
+  NetworkStatusType,
+  MemberRole,
+  NetworkWithMembers,
+  NetworkStatus,
+  AggregatedMetrics,
+  NetworkPlayerInfo,
+  BulkOperationResult,
+  ServerOperationResult,
+} from '../types';
+import logger from '../utils/logger';
+
+interface CreateNetworkDto {
+  name: string;
+  description?: string;
+  networkType?: NetworkType;
+  proxyServerId?: string;
+  proxyConfig?: { startOrder?: 'proxy_first' | 'backends_first' };
+  color?: string;
+  serverIds?: string[];
+}
+
+interface UpdateNetworkDto {
+  name?: string;
+  description?: string;
+  proxyServerId?: string;
+  proxyConfig?: { startOrder?: 'proxy_first' | 'backends_first' };
+  color?: string;
+  sortOrder?: number;
+  bulkActionsEnabled?: boolean;
+}
+
+export class NetworkService {
+  private prisma: PrismaClient;
+  private serverService: ServerService;
+  private backupService: BackupService;
+
+  constructor(
+    prisma: PrismaClient,
+    serverService: ServerService,
+    backupService: BackupService
+  ) {
+    this.prisma = prisma;
+    this.serverService = serverService;
+    this.backupService = backupService;
+  }
+
+  // ==========================================
+  // Network CRUD
+  // ==========================================
+
+  async createNetwork(data: CreateNetworkDto): Promise<PrismaNetwork> {
+    // Check if network name already exists
+    const existing = await this.prisma.serverNetwork.findUnique({
+      where: { name: data.name },
+    });
+    if (existing) {
+      throw new Error('A network with this name already exists');
+    }
+
+    const network = await this.prisma.serverNetwork.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        networkType: data.networkType || 'logical',
+        proxyServerId: data.proxyServerId,
+        proxyConfig: data.proxyConfig ? JSON.stringify(data.proxyConfig) : null,
+        color: data.color,
+      },
+    });
+
+    // Add servers if provided
+    if (data.serverIds && data.serverIds.length > 0) {
+      for (let i = 0; i < data.serverIds.length; i++) {
+        const serverId = data.serverIds[i];
+        const role: MemberRole = serverId === data.proxyServerId ? 'proxy' : 'member';
+        await this.addServer(network.id, serverId, role, i);
+      }
+    }
+
+    logger.info(`Created network: ${network.name} (${network.id})`);
+    return network;
+  }
+
+  async getNetwork(networkId: string): Promise<NetworkWithMembers | null> {
+    const network = await this.prisma.serverNetwork.findUnique({
+      where: { id: networkId },
+      include: {
+        members: {
+          include: {
+            server: {
+              select: { id: true, name: true, status: true },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+
+    return network as NetworkWithMembers | null;
+  }
+
+  async getAllNetworks(): Promise<NetworkWithMembers[]> {
+    const networks = await this.prisma.serverNetwork.findMany({
+      include: {
+        members: {
+          include: {
+            server: {
+              select: { id: true, name: true, status: true },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    return networks as NetworkWithMembers[];
+  }
+
+  async updateNetwork(networkId: string, data: UpdateNetworkDto): Promise<PrismaNetwork> {
+    const updateData: Record<string, unknown> = {};
+
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.proxyServerId !== undefined) updateData.proxyServerId = data.proxyServerId;
+    if (data.proxyConfig !== undefined) updateData.proxyConfig = JSON.stringify(data.proxyConfig);
+    if (data.color !== undefined) updateData.color = data.color;
+    if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+    if (data.bulkActionsEnabled !== undefined) updateData.bulkActionsEnabled = data.bulkActionsEnabled;
+
+    const network = await this.prisma.serverNetwork.update({
+      where: { id: networkId },
+      data: updateData,
+    });
+
+    logger.info(`Updated network: ${network.name} (${network.id})`);
+    return network;
+  }
+
+  async deleteNetwork(networkId: string): Promise<void> {
+    const network = await this.prisma.serverNetwork.findUnique({
+      where: { id: networkId },
+    });
+
+    if (!network) {
+      throw new Error(`Network ${networkId} not found`);
+    }
+
+    // Cascade delete handles members and backups
+    await this.prisma.serverNetwork.delete({
+      where: { id: networkId },
+    });
+
+    logger.info(`Deleted network: ${network.name} (${networkId})`);
+  }
+
+  // ==========================================
+  // Membership Management
+  // ==========================================
+
+  async addServer(
+    networkId: string,
+    serverId: string,
+    role: MemberRole = 'member',
+    sortOrder?: number
+  ): Promise<void> {
+    // Check if server exists
+    const server = await this.prisma.server.findUnique({
+      where: { id: serverId },
+    });
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`);
+    }
+
+    // Check if already a member
+    const existing = await this.prisma.serverNetworkMember.findUnique({
+      where: {
+        networkId_serverId: { networkId, serverId },
+      },
+    });
+    if (existing) {
+      throw new Error(`Server ${server.name} is already a member of this network`);
+    }
+
+    // Get next sort order if not provided
+    if (sortOrder === undefined) {
+      const maxSort = await this.prisma.serverNetworkMember.aggregate({
+        where: { networkId },
+        _max: { sortOrder: true },
+      });
+      sortOrder = (maxSort._max.sortOrder ?? -1) + 1;
+    }
+
+    await this.prisma.serverNetworkMember.create({
+      data: {
+        networkId,
+        serverId,
+        role,
+        sortOrder,
+      },
+    });
+
+    logger.info(`Added server ${server.name} to network ${networkId} with role ${role}`);
+  }
+
+  async removeServer(networkId: string, serverId: string): Promise<void> {
+    const membership = await this.prisma.serverNetworkMember.findUnique({
+      where: {
+        networkId_serverId: { networkId, serverId },
+      },
+    });
+
+    if (!membership) {
+      throw new Error('Server is not a member of this network');
+    }
+
+    await this.prisma.serverNetworkMember.delete({
+      where: { id: membership.id },
+    });
+
+    // If this was the proxy server, clear the proxy reference
+    const network = await this.prisma.serverNetwork.findUnique({
+      where: { id: networkId },
+    });
+    if (network?.proxyServerId === serverId) {
+      await this.prisma.serverNetwork.update({
+        where: { id: networkId },
+        data: { proxyServerId: null },
+      });
+    }
+
+    logger.info(`Removed server ${serverId} from network ${networkId}`);
+  }
+
+  async updateMemberRole(networkId: string, serverId: string, role: MemberRole): Promise<void> {
+    await this.prisma.serverNetworkMember.update({
+      where: {
+        networkId_serverId: { networkId, serverId },
+      },
+      data: { role },
+    });
+
+    logger.info(`Updated server ${serverId} role to ${role} in network ${networkId}`);
+  }
+
+  async reorderMembers(networkId: string, serverIds: string[]): Promise<void> {
+    for (let i = 0; i < serverIds.length; i++) {
+      await this.prisma.serverNetworkMember.update({
+        where: {
+          networkId_serverId: { networkId, serverId: serverIds[i] },
+        },
+        data: { sortOrder: i },
+      });
+    }
+
+    logger.info(`Reordered ${serverIds.length} servers in network ${networkId}`);
+  }
+
+  // ==========================================
+  // Bulk Operations
+  // ==========================================
+
+  async startNetwork(networkId: string): Promise<BulkOperationResult> {
+    const network = await this.getNetwork(networkId);
+    if (!network) {
+      throw new Error(`Network ${networkId} not found`);
+    }
+
+    const results: ServerOperationResult[] = [];
+
+    if (network.networkType === 'proxy') {
+      const proxyConfig = network.proxyConfig ? JSON.parse(network.proxyConfig) : {};
+      const startOrder = proxyConfig.startOrder || 'backends_first';
+
+      const proxyMember = network.members.find(m => m.role === 'proxy');
+      const backendMembers = network.members.filter(m => m.role !== 'proxy');
+
+      if (startOrder === 'backends_first') {
+        // Start backends first
+        for (const member of backendMembers) {
+          results.push(await this.startServerSafe(member.serverId, member.server.name));
+        }
+        // Then start proxy
+        if (proxyMember) {
+          results.push(await this.startServerSafe(proxyMember.serverId, proxyMember.server.name));
+        }
+      } else {
+        // Start proxy first
+        if (proxyMember) {
+          results.push(await this.startServerSafe(proxyMember.serverId, proxyMember.server.name));
+        }
+        // Then start backends
+        for (const member of backendMembers) {
+          results.push(await this.startServerSafe(member.serverId, member.server.name));
+        }
+      }
+    } else {
+      // Logical network - start all in parallel
+      const startPromises = network.members.map(m =>
+        this.startServerSafe(m.serverId, m.server.name)
+      );
+      results.push(...(await Promise.all(startPromises)));
+    }
+
+    const success = results.every(r => r.success);
+    logger.info(`Started network ${network.name}: ${results.filter(r => r.success).length}/${results.length} servers`);
+
+    return { networkId, results, success };
+  }
+
+  async stopNetwork(networkId: string): Promise<BulkOperationResult> {
+    const network = await this.getNetwork(networkId);
+    if (!network) {
+      throw new Error(`Network ${networkId} not found`);
+    }
+
+    const results: ServerOperationResult[] = [];
+
+    if (network.networkType === 'proxy') {
+      const proxyConfig = network.proxyConfig ? JSON.parse(network.proxyConfig) : {};
+      // Stop order is reverse of start order
+      const startOrder = proxyConfig.startOrder || 'backends_first';
+
+      const proxyMember = network.members.find(m => m.role === 'proxy');
+      const backendMembers = network.members.filter(m => m.role !== 'proxy');
+
+      if (startOrder === 'backends_first') {
+        // Stop proxy first (reverse of backends_first start)
+        if (proxyMember) {
+          results.push(await this.stopServerSafe(proxyMember.serverId, proxyMember.server.name));
+        }
+        // Then stop backends
+        for (const member of backendMembers) {
+          results.push(await this.stopServerSafe(member.serverId, member.server.name));
+        }
+      } else {
+        // Stop backends first (reverse of proxy_first start)
+        for (const member of backendMembers) {
+          results.push(await this.stopServerSafe(member.serverId, member.server.name));
+        }
+        // Then stop proxy
+        if (proxyMember) {
+          results.push(await this.stopServerSafe(proxyMember.serverId, proxyMember.server.name));
+        }
+      }
+    } else {
+      // Logical network - stop all in parallel
+      const stopPromises = network.members.map(m =>
+        this.stopServerSafe(m.serverId, m.server.name)
+      );
+      results.push(...(await Promise.all(stopPromises)));
+    }
+
+    const success = results.every(r => r.success);
+    logger.info(`Stopped network ${network.name}: ${results.filter(r => r.success).length}/${results.length} servers`);
+
+    return { networkId, results, success };
+  }
+
+  async restartNetwork(networkId: string): Promise<BulkOperationResult> {
+    // Stop first, then start
+    await this.stopNetwork(networkId);
+    // Wait a bit for clean shutdown
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    return this.startNetwork(networkId);
+  }
+
+  private async startServerSafe(serverId: string, serverName: string): Promise<ServerOperationResult> {
+    try {
+      await this.serverService.startServer(serverId);
+      return { serverId, serverName, success: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error(`Failed to start server ${serverName}:`, error);
+      return { serverId, serverName, success: false, error: message };
+    }
+  }
+
+  private async stopServerSafe(serverId: string, serverName: string): Promise<ServerOperationResult> {
+    try {
+      await this.serverService.stopServer(serverId);
+      return { serverId, serverName, success: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error(`Failed to stop server ${serverName}:`, error);
+      return { serverId, serverName, success: false, error: message };
+    }
+  }
+
+  // ==========================================
+  // Status & Metrics
+  // ==========================================
+
+  async getNetworkStatus(networkId: string): Promise<NetworkStatus> {
+    const network = await this.getNetwork(networkId);
+    if (!network) {
+      throw new Error(`Network ${networkId} not found`);
+    }
+
+    const memberStatuses: {
+      serverId: string;
+      serverName: string;
+      status: string;
+      cpuUsage?: number;
+      memoryUsage?: number;
+      playerCount?: number;
+    }[] = [];
+
+    for (const member of network.members) {
+      try {
+        const status = await this.serverService.getServerStatus(member.serverId);
+        let cpuUsage = 0;
+        let memoryUsage = 0;
+
+        // Get metrics if server is running
+        if (status.status === 'running') {
+          try {
+            const metrics = await this.serverService.getServerMetrics(member.serverId);
+            cpuUsage = metrics.cpuUsage;
+            memoryUsage = metrics.memoryUsage;
+          } catch (error) {
+            logger.warn(`Failed to get metrics for server ${member.serverId}:`, error);
+          }
+        }
+
+        memberStatuses.push({
+          serverId: member.serverId,
+          serverName: member.server.name,
+          status: status.status,
+          cpuUsage,
+          memoryUsage,
+          playerCount: status.playerCount,
+        });
+      } catch {
+        memberStatuses.push({
+          serverId: member.serverId,
+          serverName: member.server.name,
+          status: 'unknown',
+          cpuUsage: 0,
+          memoryUsage: 0,
+          playerCount: 0,
+        });
+      }
+    }
+
+    // Derive network status
+    const runningCount = memberStatuses.filter(s => s.status === 'running').length;
+    const stoppedCount = memberStatuses.filter(s => s.status === 'stopped').length;
+    const startingCount = memberStatuses.filter(s => s.status === 'starting').length;
+    const stoppingCount = memberStatuses.filter(s => s.status === 'stopping').length;
+    const total = memberStatuses.length;
+
+    let status: NetworkStatusType;
+    if (total === 0) {
+      status = 'stopped';
+    } else if (runningCount === total) {
+      status = 'running';
+    } else if (stoppedCount === total) {
+      status = 'stopped';
+    } else if (startingCount > 0) {
+      status = 'starting';
+    } else if (stoppingCount > 0) {
+      status = 'stopping';
+    } else {
+      status = 'partial';
+    }
+
+    return {
+      networkId,
+      status,
+      totalServers: total,
+      runningServers: runningCount,
+      stoppedServers: stoppedCount,
+      memberStatuses,
+    };
+  }
+
+  async getNetworkMetrics(networkId: string): Promise<AggregatedMetrics> {
+    const network = await this.getNetwork(networkId);
+    if (!network) {
+      throw new Error(`Network ${networkId} not found`);
+    }
+
+    let totalPlayers = 0;
+    let totalCpuUsage = 0;
+    let totalMemoryUsage = 0;
+    let totalMemoryAllocated = 0;
+    let tpsSum = 0;
+    let tpsCount = 0;
+
+    for (const member of network.members) {
+      try {
+        const metrics = await this.serverService.getServerMetrics(member.serverId);
+        totalCpuUsage += metrics.cpuUsage;
+        totalMemoryUsage += metrics.memoryUsage;
+        totalMemoryAllocated += metrics.memoryTotal;
+        if (metrics.tps > 0) {
+          tpsSum += metrics.tps;
+          tpsCount++;
+        }
+
+        const status = await this.serverService.getServerStatus(member.serverId);
+        totalPlayers += status.playerCount;
+      } catch (error) {
+        logger.warn(`Failed to get metrics for server ${member.serverId}:`, error);
+      }
+    }
+
+    const serverCount = network.members.length;
+
+    return {
+      networkId,
+      totalPlayers,
+      totalCpuUsage,
+      averageCpuUsage: serverCount > 0 ? totalCpuUsage / serverCount : 0,
+      totalMemoryUsage,
+      totalMemoryAllocated,
+      averageTps: tpsCount > 0 ? tpsSum / tpsCount : 0,
+      serverCount,
+      timestamp: new Date(),
+    };
+  }
+
+  async getNetworkPlayers(networkId: string): Promise<NetworkPlayerInfo[]> {
+    const network = await this.getNetwork(networkId);
+    if (!network) {
+      throw new Error(`Network ${networkId} not found`);
+    }
+
+    const players: NetworkPlayerInfo[] = [];
+
+    for (const member of network.members) {
+      const serverPlayers = await this.prisma.player.findMany({
+        where: {
+          serverId: member.serverId,
+          isOnline: true,
+        },
+        select: {
+          uuid: true,
+          username: true,
+          isOnline: true,
+        },
+      });
+
+      for (const player of serverPlayers) {
+        players.push({
+          uuid: player.uuid,
+          username: player.username,
+          serverId: member.serverId,
+          serverName: member.server.name,
+          isOnline: player.isOnline,
+        });
+      }
+    }
+
+    return players;
+  }
+
+  // ==========================================
+  // Network Backups
+  // ==========================================
+
+  async createNetworkBackup(networkId: string, description?: string): Promise<{ id: string; name: string }> {
+    const network = await this.getNetwork(networkId);
+    if (!network) {
+      throw new Error(`Network ${networkId} not found`);
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupName = `${network.name.toLowerCase().replace(/\s+/g, '-')}-network-${timestamp}`;
+
+    // Create network backup record
+    const networkBackup = await this.prisma.networkBackup.create({
+      data: {
+        networkId,
+        name: backupName,
+        description,
+        status: 'creating',
+      },
+    });
+
+    // Create backups for each server (async)
+    this.createServerBackupsAsync(networkBackup.id, network);
+
+    logger.info(`Started network backup: ${backupName}`);
+    return { id: networkBackup.id, name: backupName };
+  }
+
+  private async createServerBackupsAsync(
+    networkBackupId: string,
+    network: NetworkWithMembers
+  ): Promise<void> {
+    const results: { serverId: string; success: boolean; error?: string }[] = [];
+
+    for (const member of network.members) {
+      try {
+        const backup = await this.backupService.createBackup(
+          member.serverId,
+          `Network backup: ${network.name}`
+        );
+
+        // Link backup to network backup
+        await this.prisma.backup.update({
+          where: { id: backup.id },
+          data: { networkBackupId },
+        });
+
+        results.push({ serverId: member.serverId, success: true });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Failed to backup server ${member.server.name}:`, error);
+        results.push({ serverId: member.serverId, success: false, error: message });
+      }
+    }
+
+    // Update network backup status
+    const allSuccess = results.every(r => r.success);
+    await this.prisma.networkBackup.update({
+      where: { id: networkBackupId },
+      data: {
+        status: allSuccess ? 'completed' : 'failed',
+        completedAt: new Date(),
+        error: allSuccess ? null : `${results.filter(r => !r.success).length} server(s) failed to backup`,
+      },
+    });
+
+    logger.info(`Network backup ${networkBackupId} completed: ${results.filter(r => r.success).length}/${results.length} successful`);
+  }
+
+  async getNetworkBackups(networkId: string): Promise<unknown[]> {
+    return this.prisma.networkBackup.findMany({
+      where: { networkId },
+      include: {
+        serverBackups: {
+          select: {
+            id: true,
+            serverId: true,
+            name: true,
+            status: true,
+            fileSize: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async deleteNetworkBackup(backupId: string): Promise<void> {
+    const backup = await this.prisma.networkBackup.findUnique({
+      where: { id: backupId },
+      include: { serverBackups: true },
+    });
+
+    if (!backup) {
+      throw new Error(`Network backup ${backupId} not found`);
+    }
+
+    // Delete individual server backups
+    for (const serverBackup of backup.serverBackups) {
+      try {
+        await this.backupService.deleteBackup(serverBackup.id);
+      } catch (error) {
+        logger.warn(`Failed to delete server backup ${serverBackup.id}:`, error);
+      }
+    }
+
+    // Delete network backup record
+    await this.prisma.networkBackup.delete({
+      where: { id: backupId },
+    });
+
+    logger.info(`Deleted network backup: ${backupId}`);
+  }
+
+  // ==========================================
+  // Utility Methods
+  // ==========================================
+
+  async getUngroupedServers(): Promise<{ id: string; name: string; status: string }[]> {
+    // Get all servers that are not members of any network
+    const servers = await this.prisma.server.findMany({
+      where: {
+        networkMemberships: {
+          none: {},
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return servers;
+  }
+}

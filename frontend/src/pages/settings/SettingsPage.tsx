@@ -1,0 +1,695 @@
+import { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input } from '../../components/ui';
+import { Save, Bell, Check, X, Key, ExternalLink, Lock, Eye, EyeOff, HardDrive, Server } from 'lucide-react';
+import { api } from '../../services/api';
+import { useModtaleStore } from '../../stores/modtaleStore';
+import { authService, AuthError } from '../../services/auth';
+import type { ChangePasswordRequest } from '../../services/auth';
+
+interface DiscordSettings {
+  enabled: boolean;
+  webhookUrl?: string;
+  username?: string;
+  avatarUrl?: string;
+  enabledEvents: string[];
+  mentionRoleId?: string;
+}
+
+interface FtpSettings {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  secure: boolean;
+  configured: boolean;
+}
+
+interface FtpStatus {
+  enabled: boolean;
+  connected: boolean;
+  message: string;
+}
+
+const ALL_EVENTS = [
+  'server_start', 'server_stop', 'server_restart', 'server_crash',
+  'player_join', 'player_leave', 'player_ban', 'player_unban', 'player_kick',
+  'backup_complete', 'backup_failed',
+  'alert_critical', 'alert_warning',
+  'high_cpu', 'high_memory', 'high_disk'
+];
+
+export const SettingsPage = () => {
+  const { apiKey, setApiKey } = useModtaleStore();
+
+  const [settings, setSettings] = useState<DiscordSettings>({
+    enabled: false,
+    webhookUrl: '',
+    username: 'Hytale Server Manager',
+    avatarUrl: '',
+    enabledEvents: [],
+    mentionRoleId: '',
+  });
+  const [modtaleApiKey, setModtaleApiKey] = useState(apiKey || '');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [modtaleSuccess, setModtaleSuccess] = useState<string | null>(null);
+
+  // Password change state
+  const [passwordForm, setPasswordForm] = useState<ChangePasswordRequest>({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // FTP settings state
+  const [ftpSettings, setFtpSettings] = useState<FtpSettings>({
+    enabled: false,
+    host: '',
+    port: 21,
+    username: '',
+    password: '',
+    secure: false,
+    configured: false,
+  });
+  const [ftpStatus, setFtpStatus] = useState<FtpStatus | null>(null);
+  const [ftpTesting, setFtpTesting] = useState(false);
+  const [ftpError, setFtpError] = useState<string | null>(null);
+  const [ftpSuccess, setFtpSuccess] = useState<string | null>(null);
+  const [showFtpPassword, setShowFtpPassword] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+    loadFtpSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getDiscordSettings<DiscordSettings>();
+      // Ensure enabledEvents is always an array
+      setSettings({
+        ...data,
+        enabledEvents: data.enabledEvents ?? [],
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to load Discord settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFtpSettings = async () => {
+    try {
+      const [settings, status] = await Promise.all([
+        api.get<FtpSettings>('/settings/ftp'),
+        api.get<FtpStatus>('/settings/ftp/status'),
+      ]);
+      setFtpSettings(settings);
+      setFtpStatus(status);
+    } catch (err: any) {
+      console.error('Failed to load FTP settings:', err);
+    }
+  };
+
+  const handleFtpTest = async () => {
+    setFtpTesting(true);
+    setFtpError(null);
+    setFtpSuccess(null);
+
+    try {
+      const result = await api.post<{ success: boolean; message: string }>('/settings/ftp/test', {
+        host: ftpSettings.host,
+        port: ftpSettings.port,
+        username: ftpSettings.username,
+        password: ftpSettings.password,
+        secure: ftpSettings.secure,
+      });
+
+      if (result.success) {
+        setFtpSuccess(result.message);
+        setFtpStatus({ enabled: true, connected: true, message: result.message });
+      } else {
+        setFtpError(result.message);
+        setFtpStatus({ enabled: true, connected: false, message: result.message });
+      }
+    } catch (err: any) {
+      setFtpError(err.message || 'Failed to test FTP connection');
+    } finally {
+      setFtpTesting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await api.updateDiscordSettings(settings);
+      setSuccess('Discord settings saved successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save Discord settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await api.testDiscordNotification();
+      setSuccess('Test notification sent! Check your Discord channel.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send test notification');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleModtaleSave = async () => {
+    setModtaleSuccess(null);
+    setError(null);
+    setSaving(true);
+
+    try {
+      await setApiKey(modtaleApiKey);
+      setModtaleSuccess('Modtale API key saved successfully! You can now browse and install mods.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save API key');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleEvent = (eventId: string) => {
+    setSettings(prev => ({
+      ...prev,
+      enabledEvents: prev.enabledEvents.includes(eventId)
+        ? prev.enabledEvents.filter(e => e !== eventId)
+        : [...prev.enabledEvents, eventId],
+    }));
+  };
+
+  const handlePasswordChange = async () => {
+    setPasswordSaving(true);
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    try {
+      const result = await authService.changePassword(passwordForm);
+      setPasswordSuccess(result.message);
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (err) {
+      const message = err instanceof AuthError
+        ? err.message
+        : 'Failed to change password';
+      setPasswordError(message);
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const isPasswordFormValid = () => {
+    return (
+      passwordForm.currentPassword.length > 0 &&
+      passwordForm.newPassword.length >= 8 &&
+      passwordForm.newPassword === passwordForm.confirmPassword &&
+      passwordForm.newPassword !== passwordForm.currentPassword
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="text-center py-8 text-text-secondary">Loading settings...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-text-primary">Settings</h1>
+        <p className="text-text-secondary mt-1">Configure application settings</p>
+      </div>
+
+      {/* Modtale API Key */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Key size={20} />
+                Modtale API Key
+              </CardTitle>
+              <CardDescription>Configure your Modtale Enterprise API key to browse and install mods</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {modtaleSuccess && (
+            <div className="bg-green-500/10 text-green-500 p-3 rounded mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Check size={16} />
+                {modtaleSuccess}
+              </span>
+              <button onClick={() => setModtaleSuccess(null)}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">API Key</label>
+              <Input
+                type="password"
+                placeholder="Enter your Modtale Enterprise API key"
+                value={modtaleApiKey}
+                onChange={(e) => setModtaleApiKey(e.target.value)}
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <p className="text-xs text-text-secondary">
+                  Don't have an API key?
+                </p>
+                <a
+                  href="https://modtale.net/dashboard/settings/api-keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-accent-primary hover:underline flex items-center gap-1"
+                >
+                  Get one from Modtale
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                variant="primary"
+                onClick={handleModtaleSave}
+                disabled={!modtaleApiKey.trim() || saving}
+              >
+                <Save size={16} className="mr-2" />
+                {saving ? 'Saving...' : 'Save API Key'}
+              </Button>
+              {apiKey && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setModtaleApiKey('');
+                    setApiKey('');
+                    setModtaleSuccess('API key cleared');
+                  }}
+                >
+                  Clear API Key
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Change Password */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Lock size={20} />
+                Change Password
+              </CardTitle>
+              <CardDescription>Update your account password</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {passwordError && (
+            <div className="bg-red-500/10 text-red-500 p-3 rounded mb-4 flex items-center justify-between">
+              <span>{passwordError}</span>
+              <button onClick={() => setPasswordError(null)}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          {passwordSuccess && (
+            <div className="bg-green-500/10 text-green-500 p-3 rounded mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Check size={16} />
+                {passwordSuccess}
+              </span>
+              <button onClick={() => setPasswordSuccess(null)}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Current Password</label>
+              <div className="relative">
+                <Input
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  placeholder="Enter your current password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                >
+                  {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">New Password</label>
+              <div className="relative">
+                <Input
+                  type={showNewPassword ? 'text' : 'password'}
+                  placeholder="Enter new password (min. 8 characters)"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                >
+                  {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {passwordForm.newPassword.length > 0 && passwordForm.newPassword.length < 8 && (
+                <p className="text-xs text-red-500 mt-1">Password must be at least 8 characters</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Confirm New Password</label>
+              <div className="relative">
+                <Input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Confirm new password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {passwordForm.confirmPassword.length > 0 && passwordForm.newPassword !== passwordForm.confirmPassword && (
+                <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                variant="primary"
+                onClick={handlePasswordChange}
+                disabled={passwordSaving || !isPasswordFormValid()}
+              >
+                <Lock size={16} className="mr-2" />
+                {passwordSaving ? 'Changing...' : 'Change Password'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Discord Notifications */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Bell size={20} />
+                Discord Notifications
+              </CardTitle>
+              <CardDescription>Configure Discord webhook notifications for server events</CardDescription>
+            </div>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.enabled}
+                onChange={(e) => setSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                className="mr-2"
+              />
+              <span className="text-sm">Enable</span>
+            </label>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="bg-red-500/10 text-red-500 p-3 rounded mb-4 flex items-center justify-between">
+              <span>{error}</span>
+              <button onClick={() => setError(null)}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          {success && (
+            <div className="bg-green-500/10 text-green-500 p-3 rounded mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Check size={16} />
+                {success}
+              </span>
+              <button onClick={() => setSuccess(null)}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Webhook URL</label>
+              <Input
+                type="text"
+                placeholder={settings.webhookUrl === '***' ? '(Configured - enter new URL to change)' : 'https://discord.com/api/webhooks/...'}
+                value={settings.webhookUrl === '***' ? '' : (settings.webhookUrl || '')}
+                onChange={(e) => setSettings(prev => ({ ...prev, webhookUrl: e.target.value }))}
+                disabled={!settings.enabled}
+              />
+              <p className="text-xs text-text-secondary mt-1">
+                {settings.webhookUrl === '***'
+                  ? 'Webhook URL is configured. Enter a new URL to change it.'
+                  : 'Get this URL from Discord: Server Settings → Integrations → Webhooks'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Bot Username</label>
+                <Input
+                  type="text"
+                  value={settings.username || ''}
+                  onChange={(e) => setSettings(prev => ({ ...prev, username: e.target.value }))}
+                  disabled={!settings.enabled}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Avatar URL</label>
+                <Input
+                  type="text"
+                  value={settings.avatarUrl || ''}
+                  onChange={(e) => setSettings(prev => ({ ...prev, avatarUrl: e.target.value }))}
+                  disabled={!settings.enabled}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Enabled Events</label>
+              <div className="grid grid-cols-2 gap-2">
+                {ALL_EVENTS.map(event => (
+                  <label key={event} className="flex items-center gap-2 p-2 border rounded">
+                    <input
+                      type="checkbox"
+                      checked={settings.enabledEvents.includes(event)}
+                      onChange={() => toggleEvent(event)}
+                      disabled={!settings.enabled}
+                    />
+                    <span className="text-sm">{event.replace(/_/g, ' ')}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                disabled={saving || !settings.enabled}
+              >
+                <Save size={16} className="mr-2" />
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleTest}
+                disabled={testing || !settings.enabled || !settings.webhookUrl}
+              >
+                <Bell size={16} className="mr-2" />
+                {testing ? 'Sending...' : 'Test'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* FTP Storage Settings */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <HardDrive size={20} />
+                FTP Storage
+              </CardTitle>
+              <CardDescription>Configure FTP server for remote backup storage</CardDescription>
+            </div>
+            {ftpStatus && (
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
+                ftpStatus.connected
+                  ? 'bg-green-500/10 text-green-500'
+                  : ftpStatus.enabled
+                    ? 'bg-yellow-500/10 text-yellow-500'
+                    : 'bg-gray-500/10 text-gray-500'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  ftpStatus.connected
+                    ? 'bg-green-500'
+                    : ftpStatus.enabled
+                      ? 'bg-yellow-500'
+                      : 'bg-gray-500'
+                }`} />
+                {ftpStatus.connected ? 'Connected' : ftpStatus.enabled ? 'Disconnected' : 'Not Configured'}
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {ftpError && (
+            <div className="bg-red-500/10 text-red-500 p-3 rounded mb-4 flex items-center justify-between">
+              <span>{ftpError}</span>
+              <button onClick={() => setFtpError(null)}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          {ftpSuccess && (
+            <div className="bg-green-500/10 text-green-500 p-3 rounded mb-4 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Check size={16} />
+                {ftpSuccess}
+              </span>
+              <button onClick={() => setFtpSuccess(null)}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="bg-blue-500/10 text-blue-400 p-3 rounded mb-4 text-sm">
+            <strong>Note:</strong> FTP credentials are configured via environment variables on the server for security.
+            You can use this form to test connections with different credentials.
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">FTP Host</label>
+                <Input
+                  type="text"
+                  placeholder="ftp.example.com"
+                  value={ftpSettings.host}
+                  onChange={(e) => setFtpSettings(prev => ({ ...prev, host: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Port</label>
+                <Input
+                  type="number"
+                  value={ftpSettings.port}
+                  onChange={(e) => setFtpSettings(prev => ({ ...prev, port: parseInt(e.target.value) || 21 }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Username</label>
+                <Input
+                  type="text"
+                  placeholder="ftp_user"
+                  value={ftpSettings.username}
+                  onChange={(e) => setFtpSettings(prev => ({ ...prev, username: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Password</label>
+                <div className="relative">
+                  <Input
+                    type={showFtpPassword ? 'text' : 'password'}
+                    placeholder="Enter FTP password"
+                    value={ftpSettings.password}
+                    onChange={(e) => setFtpSettings(prev => ({ ...prev, password: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowFtpPassword(!showFtpPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                  >
+                    {showFtpPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ftpSettings.secure}
+                  onChange={(e) => setFtpSettings(prev => ({ ...prev, secure: e.target.checked }))}
+                />
+                <span className="text-sm">Use SFTP (FTP over TLS/SSL)</span>
+              </label>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                variant="secondary"
+                onClick={handleFtpTest}
+                disabled={ftpTesting || !ftpSettings.host || !ftpSettings.username || !ftpSettings.password}
+              >
+                <Server size={16} className="mr-2" />
+                {ftpTesting ? 'Testing...' : 'Test Connection'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};

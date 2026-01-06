@@ -1,0 +1,215 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-gray-300 dark:border-gray-800;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-primary-light-bg dark:bg-primary-bg;
+    @apply text-text-light-primary dark:text-text-primary;
+    @apply font-body antialiased;
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  .dark body {
+    @apply bg-grid-pattern;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading font-semibold;
+  }
+
+  h1 {
+    @apply text-4xl;
+  }
+
+  h2 {
+    @apply text-3xl;
+  }
+
+  h3 {
+    @apply text-2xl;
+  }
+
+  h4 {
+    @apply text-xl;
+  }
+
+  code,
+  pre {
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  /* Glass morphism card */
+  .glass-card {
+    @apply bg-white/60 dark:bg-primary-bg-secondary/40;
+    @apply backdrop-blur-md;
+    @apply border border-gray-200 dark:border-gray-800/50;
+    @apply rounded-lg;
+    @apply shadow-lg shadow-gray-200/50 dark:shadow-black/20;
+  }
+
+  /* Solid card for marketing */
+  .solid-card {
+    @apply bg-white dark:bg-primary-bg-secondary;
+    @apply border border-gray-200 dark:border-gray-800;
+    @apply rounded-xl;
+    @apply shadow-lg;
+  }
+
+  /* Glow effect */
+  .glow-accent {
+    @apply shadow-lg shadow-accent-primary/20;
+  }
+
+  /* Hero gradient background */
+  .hero-gradient {
+    background: linear-gradient(
+      135deg,
+      #0f1419 0%,
+      #1a1f2e 50%,
+      #0f1419 100%
+    );
+  }
+
+  /* Feature card hover */
+  .feature-card {
+    @apply transition-all duration-300;
+  }
+
+  .feature-card:hover {
+    @apply border-accent-primary/50 -translate-y-1;
+    @apply shadow-xl shadow-accent-primary/10;
+  }
+
+  /* Navigation link active state */
+  .nav-link {
+    @apply text-text-muted hover:text-text-primary transition-colors;
+  }
+
+  .nav-link.active {
+    @apply text-accent-primary;
+  }
+
+  /* Scrollbar styling */
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-primary-bg;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-400 dark:bg-gray-700 rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500 dark:bg-gray-600;
+  }
+
+  /* Prose styles for documentation */
+  .prose {
+    @apply text-text-light-primary dark:text-text-primary;
+  }
+
+  .prose h1,
+  .prose h2,
+  .prose h3,
+  .prose h4 {
+    @apply text-text-light-primary dark:text-text-primary font-heading;
+  }
+
+  .prose a {
+    @apply text-accent-primary hover:text-accent-secondary transition-colors;
+  }
+
+  .prose code {
+    @apply bg-gray-100 dark:bg-primary-bg-secondary px-1.5 py-0.5 rounded text-sm;
+  }
+
+  .prose pre {
+    @apply bg-gray-900 dark:bg-primary-bg rounded-lg p-4 overflow-x-auto;
+  }
+
+  .prose pre code {
+    @apply bg-transparent p-0;
+  }
+
+  .prose ul,
+  .prose ol {
+    @apply my-4 ml-6;
+  }
+
+  .prose li {
+    @apply my-2;
+  }
+
+  .prose blockquote {
+    @apply border-l-4 border-accent-primary pl-4 italic text-text-muted;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent;
+  }
+
+  .border-gradient {
+    border-image: linear-gradient(to right, #f59e0b, #06b6d4) 1;
+  }
+
+  /* Section spacing */
+  .section-padding {
+    @apply py-16 md:py-24;
+  }
+
+  .container-padding {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+}
+
+/* Animation keyframes */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
