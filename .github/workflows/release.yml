@@ -90,75 +90,17 @@ jobs:
           mkdir -p release-package/data/{db,logs,servers,backups}
 
           # Create install script for Windows
-          cat > release-package/install.bat << 'EOFBAT'
-@echo off
-echo ======================================
-echo   Hytale Server Manager - Setup
-echo ======================================
-echo.
-cd /d "%~dp0"
-
-echo Setting up database...
-call node_modules\.bin\prisma db push
-echo.
-echo Setup complete!
-echo.
-echo Run start.bat to launch the application.
-pause
-EOFBAT
+          printf '@echo off\r\necho ======================================\r\necho   Hytale Server Manager - Setup\r\necho ======================================\r\necho.\r\ncd /d "%%~dp0"\r\necho Setting up database...\r\ncall node_modules\\.bin\\prisma db push\r\necho.\r\necho Setup complete!\r\necho.\r\necho Run start.bat to launch the application.\r\npause\r\n' > release-package/install.bat
 
           # Create install script for Linux
-          cat > release-package/install.sh << 'EOFSH'
-#!/bin/bash
-echo "======================================"
-echo "  Hytale Server Manager - Setup"
-echo "======================================"
-echo
-cd "$(dirname "$0")"
-
-echo "Setting up database..."
-./node_modules/.bin/prisma db push
-echo
-echo "Setup complete!"
-echo
-echo "Run ./start.sh to launch the application."
-EOFSH
+          printf '#!/bin/bash\necho "======================================"\necho "  Hytale Server Manager - Setup"\necho "======================================"\necho\ncd "$(dirname "$0")"\necho "Setting up database..."\n./node_modules/.bin/prisma db push\necho\necho "Setup complete!"\necho\necho "Run ./start.sh to launch the application."\n' > release-package/install.sh
           chmod +x release-package/install.sh
 
           # Create start script for Windows
-          cat > release-package/start.bat << 'EOFBAT'
-@echo off
-echo ======================================
-echo   Hytale Server Manager
-echo ======================================
-echo.
-cd /d "%~dp0"
-set NODE_ENV=production
-set HSM_BASE_PATH=%~dp0
-echo Starting application...
-echo Press Ctrl+C to stop
-echo.
-node dist\index.js
-echo.
-echo Application stopped.
-pause
-EOFBAT
+          printf '@echo off\r\necho ======================================\r\necho   Hytale Server Manager\r\necho ======================================\r\necho.\r\ncd /d "%%~dp0"\r\nset NODE_ENV=production\r\nset HSM_BASE_PATH=%%~dp0\r\necho Starting application...\r\necho Press Ctrl+C to stop\r\necho.\r\nnode dist\\index.js\r\necho.\r\necho Application stopped.\r\npause\r\n' > release-package/start.bat
 
           # Create start script for Linux
-          cat > release-package/start.sh << 'EOFSH'
-#!/bin/bash
-echo "======================================"
-echo "  Hytale Server Manager"
-echo "======================================"
-echo
-cd "$(dirname "$0")"
-export NODE_ENV=production
-export HSM_BASE_PATH="$(pwd)"
-echo "Starting application..."
-echo "Press Ctrl+C to stop"
-echo
-node dist/index.js
-EOFSH
+          printf '#!/bin/bash\necho "======================================"\necho "  Hytale Server Manager"\necho "======================================"\necho\ncd "$(dirname "$0")"\nexport NODE_ENV=production\nexport HSM_BASE_PATH="$(pwd)"\necho "Starting application..."\necho "Press Ctrl+C to stop"\necho\nnode dist/index.js\n' > release-package/start.sh
           chmod +x release-package/start.sh
 
           # Create Windows package
