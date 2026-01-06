@@ -27,13 +27,16 @@ export function configureSecurityHeaders(app: Express): void {
   );
 
   // HTTP Strict Transport Security (HSTS)
-  app.use(
-    helmet.hsts({
-      maxAge: 31536000, // 1 year
-      includeSubDomains: true,
-      preload: true,
-    })
-  );
+  // Only enable if explicitly configured (requires proper SSL setup)
+  if (process.env.ENABLE_HSTS === 'true') {
+    app.use(
+      helmet.hsts({
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true,
+      })
+    );
+  }
 
   // Prevent clickjacking
   app.use(helmet.frameguard({ action: 'deny' }));
@@ -66,9 +69,10 @@ export function configureSecurityHeaders(app: Express): void {
 
 /**
  * HTTPS redirect middleware for production
+ * Only enabled when ENFORCE_HTTPS=true (for use behind SSL-terminating proxy)
  */
 export function enforceHTTPS(app: Express): void {
-  if (config.nodeEnv === 'production') {
+  if (config.nodeEnv === 'production' && process.env.ENFORCE_HTTPS === 'true') {
     app.use((req, res, next) => {
       if (!req.secure && req.get('x-forwarded-proto') !== 'https') {
         return res.redirect(`https://${req.get('host')}${req.url}`);
