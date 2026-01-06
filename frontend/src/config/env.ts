@@ -181,7 +181,7 @@ function createConfig(): EnvConfig {
     app: {
       name: getEnvVar('VITE_APP_NAME', 'Hytale Server Manager'),
       version: getEnvVar('VITE_APP_VERSION', '1.0.0'),
-      basePath: getEnvVar('VITE_APP_BASE_PATH', '/hytale_server_manager'),
+      basePath: getEnvVar('VITE_APP_BASE_PATH', '/'),
       logLevel: getEnvVar('VITE_LOG_LEVEL', isDevelopment ? 'debug' : 'warn') as LogLevel,
     },
 

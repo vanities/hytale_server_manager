@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/hytale_server_manager/',
+  base: '/',
   build: {
     outDir: 'dist',
     sourcemap: false,
