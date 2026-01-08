@@ -105,35 +105,29 @@ jobs:
           echo Checking for Node.js...
           where node >nul 2>&1
           if %errorLevel% neq 0 (
-              echo Node.js not found. Installing...
+              echo Node.js not found. Installing automatically...
+              echo.
 
-              :: Check for admin rights
-              net session >nul 2>&1
-              if %errorLevel% neq 0 (
-                  echo Administrator privileges required to install Node.js.
-                  echo Requesting elevation...
-                  PowerShell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-                  exit /b
-              )
+              :: Download and install Node.js using PowerShell (handles elevation internally)
+              PowerShell -ExecutionPolicy Bypass -Command ^
+                "$msiPath = \"$env:TEMP\node-install.msi\"; ^
+                Write-Host 'Downloading Node.js v20...'; ^
+                Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-x64.msi' -OutFile $msiPath; ^
+                Write-Host 'Installing Node.js (may require admin approval)...'; ^
+                Start-Process msiexec.exe -ArgumentList '/i', $msiPath, '/passive', '/norestart' -Wait -Verb RunAs; ^
+                Remove-Item $msiPath -Force -ErrorAction SilentlyContinue; ^
+                Write-Host 'Node.js installation complete.'"
 
-              echo Downloading Node.js v20...
-              PowerShell -Command "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-x64.msi' -OutFile '%TEMP%\node-installer.msi'"
+              :: Refresh PATH for this session
+              for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYSPATH=%%b"
+              for /f "tokens=2*" %%a in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USRPATH=%%b"
+              set "PATH=%SYSPATH%;%USRPATH%"
 
-              echo Installing Node.js v20...
-              msiexec /i "%TEMP%\node-installer.msi" /qn
-
-              :: Refresh PATH
-              set "PATH=%ProgramFiles%\nodejs;%PATH%"
-
-              :: Cleanup
-              del "%TEMP%\node-installer.msi" 2>nul
-
-              echo Node.js installed successfully.
               echo.
           )
 
           :: Verify Node.js
-          node --version >nul 2>&1
+          where node >nul 2>&1
           if %errorLevel% neq 0 (
               echo ERROR: Node.js installation failed or not in PATH.
               echo Please install Node.js manually from https://nodejs.org/
