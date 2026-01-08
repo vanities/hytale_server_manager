@@ -36,6 +36,10 @@ export class MetricsService {
   private previousCpuTimes: Map<string, { idle: number; total: number }> = new Map();
   private lastCpuUsage: Map<string, number> = new Map();
 
+  // Store previous host CPU measurement for delta calculation
+  private previousHostCpuTimes: { idle: number; total: number } | null = null;
+  private lastHostCpuUsage: number = 0;
+
   /**
    * Start collecting metrics for all running servers
    */
@@ -126,7 +130,22 @@ export class MetricsService {
       totalIdle += cpu.times.idle;
     }
 
-    const cpuUsage = Math.round((100 - (100 * totalIdle / totalTick)) * 100) / 100;
+    const currentCpuTimes = { idle: totalIdle, total: totalTick };
+
+    // Calculate CPU usage from delta (if we have a previous measurement)
+    if (this.previousHostCpuTimes) {
+      const idleDelta = currentCpuTimes.idle - this.previousHostCpuTimes.idle;
+      const totalDelta = currentCpuTimes.total - this.previousHostCpuTimes.total;
+
+      if (totalDelta > 0) {
+        this.lastHostCpuUsage = Math.round((100 - (100 * idleDelta / totalDelta)) * 100) / 100;
+      }
+    }
+
+    // Store current measurement for next call
+    this.previousHostCpuTimes = currentCpuTimes;
+
+    const cpuUsage = this.lastHostCpuUsage;
     const cpuCores = cpus.length;
 
     const totalMem = os.totalmem();
