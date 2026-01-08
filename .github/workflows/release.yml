@@ -92,16 +92,63 @@ jobs:
           # Create install script for Windows
           cat > release-package/install.bat << 'ENDBAT'
           @echo off
+          :: Hytale Server Manager - Windows Installer
+
+          cd /d "%~dp0"
+          echo.
           echo ======================================
           echo   Hytale Server Manager - Setup
           echo ======================================
           echo.
-          cd /d "%~dp0"
+
+          :: Check for Node.js
+          echo Checking for Node.js...
+          where node >nul 2>&1
+          if %errorLevel% neq 0 (
+              echo Node.js not found. Installing...
+
+              :: Check for admin rights
+              net session >nul 2>&1
+              if %errorLevel% neq 0 (
+                  echo Administrator privileges required to install Node.js.
+                  echo Requesting elevation...
+                  PowerShell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+                  exit /b
+              )
+
+              echo Downloading Node.js v20...
+              PowerShell -Command "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-x64.msi' -OutFile '%TEMP%\node-installer.msi'"
+
+              echo Installing Node.js v20...
+              msiexec /i "%TEMP%\node-installer.msi" /qn
+
+              :: Refresh PATH
+              set "PATH=%ProgramFiles%\nodejs;%PATH%"
+
+              :: Cleanup
+              del "%TEMP%\node-installer.msi" 2>nul
+
+              echo Node.js installed successfully.
+              echo.
+          )
+
+          :: Verify Node.js
+          node --version >nul 2>&1
+          if %errorLevel% neq 0 (
+              echo ERROR: Node.js installation failed or not in PATH.
+              echo Please install Node.js manually from https://nodejs.org/
+              echo Then run this script again.
+              pause
+              exit /b 1
+          )
+
+          for /f "tokens=*" %%i in ('node --version') do echo Node.js version: %%i
+          echo.
 
           echo Checking environment configuration...
           if not exist ".env" (
-            echo Creating .env from template...
-            copy .env.example .env >nul
+              echo Creating .env from template...
+              copy .env.example .env >nul
           )
 
           echo Generating secrets if needed...
@@ -109,9 +156,12 @@ jobs:
 
           echo.
           echo Setting up database...
-          node node_modules\prisma\build\index.js db push
+          node node_modules\prisma\build\index.js generate
+          node node_modules\prisma\build\index.js migrate deploy
           echo.
-          echo Setup complete!
+          echo ======================================
+          echo   Setup complete!
+          echo ======================================
           echo.
           echo Run start.bat to launch the application.
           pause
@@ -122,16 +172,63 @@ jobs:
           # Create install script for Linux
           cat > release-package/install.sh << 'ENDSH'
           #!/bin/bash
+          # Hytale Server Manager - Linux Installer
+
+          cd "$(dirname "$0")"
+          echo
           echo "======================================"
           echo "  Hytale Server Manager - Setup"
           echo "======================================"
           echo
-          cd "$(dirname "$0")"
+
+          # Check for Node.js
+          echo "Checking for Node.js..."
+          if ! command -v node &> /dev/null; then
+              echo "Node.js not found. Installing..."
+
+              # Check if running as root
+              if [ "$EUID" -ne 0 ]; then
+                  echo "Root privileges required to install Node.js."
+                  echo "Please run: sudo ./install.sh"
+                  exit 1
+              fi
+
+              # Detect package manager and install Node.js
+              if command -v apt-get &> /dev/null; then
+                  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+                  apt-get install -y nodejs
+              elif command -v yum &> /dev/null; then
+                  curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+                  yum install -y nodejs
+              elif command -v dnf &> /dev/null; then
+                  curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+                  dnf install -y nodejs
+              elif command -v pacman &> /dev/null; then
+                  pacman -S --noconfirm nodejs npm
+              else
+                  echo "ERROR: Could not detect package manager."
+                  echo "Please install Node.js 20+ manually from https://nodejs.org/"
+                  exit 1
+              fi
+
+              echo "Node.js installed successfully."
+              echo
+          fi
+
+          # Verify Node.js
+          if ! command -v node &> /dev/null; then
+              echo "ERROR: Node.js installation failed."
+              echo "Please install Node.js 20+ manually from https://nodejs.org/"
+              exit 1
+          fi
+
+          echo "Node.js version: $(node --version)"
+          echo
 
           echo "Checking environment configuration..."
           if [ ! -f ".env" ]; then
-            echo "Creating .env from template..."
-            cp .env.example .env
+              echo "Creating .env from template..."
+              cp .env.example .env
           fi
 
           echo "Generating secrets if needed..."
@@ -162,9 +259,12 @@ jobs:
 
           echo
           echo "Setting up database..."
-          ./node_modules/.bin/prisma db push
+          ./node_modules/.bin/prisma generate
+          ./node_modules/.bin/prisma migrate deploy
           echo
-          echo "Setup complete!"
+          echo "======================================"
+          echo "  Setup complete!"
+          echo "======================================"
           echo
           echo "Run ./start.sh to launch the application."
           ENDSH
