@@ -84,7 +84,7 @@ export const Header = () => {
   };
 
   return (
-    <header className="hidden lg:flex h-16 bg-white dark:bg-gray-100 dark:bg-primary-bg-secondary border-b border-gray-300 dark:border-gray-800 px-4 lg:px-6 items-center justify-between sticky top-0 z-10">
+    <header className="hidden lg:flex h-16 bg-white dark:bg-gray-100 dark:bg-primary-bg-secondary border-b border-gray-300 dark:border-gray-800 px-4 lg:px-6 items-center justify-between sticky top-0 z-40">
       {/* Search */}
       <div className="flex-1 max-w-md">
         <div className="relative">
@@ -120,7 +120,7 @@ export const Header = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute right-0 mt-2 w-80 sm:w-96 glass-card shadow-xl max-h-96 overflow-auto custom-scrollbar"
+                className="absolute right-0 mt-2 w-80 sm:w-96 glass-card shadow-xl max-h-96 overflow-auto custom-scrollbar z-50"
               >
                 <div className="p-4 border-b border-gray-300 dark:border-gray-800 flex items-center justify-between">
                   <h3 className="font-heading font-semibold">Alerts</h3>
@@ -248,7 +248,7 @@ export const Header = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute right-0 mt-2 w-48 glass-card shadow-xl"
+                className="absolute right-0 mt-2 w-48 glass-card shadow-xl z-50"
               >
                 <div className="p-2">
                   <button

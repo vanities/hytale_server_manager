@@ -81,7 +81,7 @@ export const useAlertsStore = create<AlertsState>((set, get) => ({
 
   markAllAsRead: async () => {
     try {
-      await api.request('/api/alerts/read-all', { method: 'PUT' });
+      await api.markAllAlertsAsReadGlobal();
       set((state) => ({
         alerts: state.alerts.map((a) => ({ ...a, isRead: true })),
         unreadCount: 0,

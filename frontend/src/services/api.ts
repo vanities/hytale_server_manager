@@ -717,6 +717,12 @@ class ApiService {
     });
   }
 
+  async markAllAlertsAsReadGlobal() {
+    return this.request<{ message: string }>('/api/alerts/read-all', {
+      method: 'PUT',
+    });
+  }
+
   async resolveAlert(serverId: string, alertId: string) {
     return this.request<{ message: string }>(`/api/servers/${serverId}/alerts/${alertId}/resolve`, {
       method: 'PUT',
