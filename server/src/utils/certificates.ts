@@ -7,8 +7,15 @@
 
 import fs from 'fs-extra';
 import path from 'path';
+import { webcrypto } from 'crypto';
+import * as x509 from '@peculiar/x509';
 import selfsigned from 'selfsigned';
 import logger from './logger';
+
+// Set up crypto provider for @peculiar/x509 (required on some Linux systems)
+// This must be done before using selfsigned
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+x509.cryptoProvider.set(webcrypto as any);
 
 export interface CertificateInfo {
   certPath: string;
