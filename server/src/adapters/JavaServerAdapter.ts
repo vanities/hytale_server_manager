@@ -95,8 +95,9 @@ export class JavaServerAdapter implements IServerAdapter {
       `-Xmx${this.maxMemory}`,
       '-jar',
     ];
-    // Build server args with assets path
-    const defaultServerArgs = ['--assets', this.assetsPath];
+    // Build server args with assets path and bind address
+    const bindAddress = `${config.address || '0.0.0.0'}:${config.port}`;
+    const defaultServerArgs = ['--assets', this.assetsPath, '--bind', bindAddress];
     this.serverArgs = adapterConfig?.serverArgs || defaultServerArgs;
 
     // RCON configuration (default port = server port + 10)
@@ -117,6 +118,7 @@ export class JavaServerAdapter implements IServerAdapter {
     logger.info(`Working directory: ${this.workingDirectory}`);
     logger.info(`JAR file: ${this.jarFile}`);
     logger.info(`Assets path: ${this.assetsPath}`);
+    logger.info(`Bind address: ${bindAddress}`);
     logger.info(`Max memory: ${this.maxMemory}`);
     logger.info(`RCON port: ${this.rconPort}`);
   }
