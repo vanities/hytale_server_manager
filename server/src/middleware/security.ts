@@ -21,10 +21,10 @@ export function configureSecurityHeaders(app: Express): void {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for development
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         imgSrc: ["'self'", 'data:', 'https:', 'http:'],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
+        connectSrc: ["'self'", 'ws:', 'wss:'], // Allow WebSocket connections
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'], // Google Fonts are served from gstatic
         objectSrc: ["'none'"],
         mediaSrc: ["'self'"],
         frameSrc: ["'none'"],

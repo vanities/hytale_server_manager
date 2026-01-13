@@ -49,6 +49,14 @@ export class ServerService {
 
     switch (server.adapterType) {
       case 'java':
+        // Parse JVM args string into array for the adapter
+        // e.g., "-Xms1G -Xmx2G" -> ["-Xms1G", "-Xmx2G", "-jar"]
+        let javaArgs: string[] | undefined;
+        if (server.jvmArgs) {
+          const jvmArgsList = server.jvmArgs.split(/\s+/).filter(arg => arg.trim());
+          javaArgs = [...jvmArgsList, '-jar'];
+        }
+
         adapter = new JavaServerAdapter(
           serverId,
           this.prismaToConfig(server),
@@ -57,6 +65,8 @@ export class ServerService {
           this.logTailService,
           {
             ...adapterConfig,
+            // Pass JVM args if configured
+            javaArgs,
             // Pass persisted RCON config if available
             rconPort: server.rconPort || undefined,
             rconPassword: server.rconPassword || undefined,

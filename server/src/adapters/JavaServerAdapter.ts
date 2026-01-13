@@ -148,6 +148,15 @@ export class JavaServerAdapter implements IServerAdapter {
       throw new Error(`JAR file not found: ${jarPath}`);
     }
 
+    // Check if assets file exists (if specified)
+    if (this.assetsPath) {
+      const assetsFullPath = path.resolve(jarDir, this.assetsPath);
+      if (!await fs.pathExists(assetsFullPath)) {
+        logger.warn(`[Java] Assets file not found: ${assetsFullPath}`);
+      }
+    }
+
+    // Log the full command for debugging
     logger.info(`[Java] Starting server ${this.serverId}`);
     logger.info(`[Java] Working directory: ${jarDir}`);
     logger.info(`[Java] Command: ${this.javaPath} ${this.javaArgs.join(' ')} ${jarFileName} ${this.serverArgs.join(' ')}`);
@@ -190,6 +199,8 @@ export class JavaServerAdapter implements IServerAdapter {
       this.process.stdout?.on('data', (data: Buffer) => {
         const lines = data.toString().split('\n').filter(line => line.trim());
         lines.forEach(line => {
+          // Log to server logger for debugging startup issues
+          logger.info(`[Java] stdout: ${line.substring(0, 200)}`);
           const logEntry = this.parseLogLine(line);
           this.emitLog(logEntry);
 
@@ -206,6 +217,8 @@ export class JavaServerAdapter implements IServerAdapter {
       this.process.stderr?.on('data', (data: Buffer) => {
         const lines = data.toString().split('\n').filter(line => line.trim());
         lines.forEach(line => {
+          // Log to server logger so we can see errors even if console isn't connected
+          logger.error(`[Java] stderr: ${line}`);
           this.emitLog({
             timestamp: new Date(),
             level: 'error',
