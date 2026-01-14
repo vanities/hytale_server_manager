@@ -103,8 +103,8 @@ ENV NODE_ENV=production \
 
 # Expose ports
 # 3001 - Web UI and API
-# 5520 - Default Hytale game server port
-EXPOSE 3001 5520
+# 5520 - Default Hytale game server port (TCP + UDP for QUIC)
+EXPOSE 3001 5520 5520/udp
 
 # Volume for persistent data
 VOLUME ["/app/data"]
