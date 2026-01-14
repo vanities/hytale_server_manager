@@ -55,7 +55,8 @@ FROM node:20-alpine AS runtime
 # - tini: Proper init process for containers
 # - openjdk21: Required for running Hytale/Java game servers
 # - unzip: Required for extracting server files
-RUN apk add --no-cache openssl tini openjdk21-jre unzip
+# - gcompat: glibc compatibility for native libraries (netty_quiche)
+RUN apk add --no-cache openssl tini openjdk21-jre unzip gcompat
 
 # Create default user (can be overridden with PUID/PGID env vars at runtime)
 RUN addgroup -g 1001 -S hytale && \
