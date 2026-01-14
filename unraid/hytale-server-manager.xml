@@ -35,4 +35,6 @@
   <Config Name="Settings Encryption Key" Target="SETTINGS_ENCRYPTION_KEY" Default="" Mode="" Description="32-character encryption key for settings. Leave empty to auto-generate." Type="Variable" Display="advanced" Required="false" Mask="true"/>
   <Config Name="Log Level" Target="LOG_LEVEL" Default="info" Mode="" Description="Logging level: debug, info, warn, error" Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
   <Config Name="Rate Limit Max" Target="RATE_LIMIT_MAX" Default="10000" Mode="" Description="Maximum API requests per 15 minutes. Default: 10000" Type="Variable" Display="advanced" Required="false" Mask="false">10000</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for file permissions (Unraid default: 99)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for file permissions (Unraid default: 100)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
 </Container>

@@ -57,7 +57,7 @@ FROM node:20-alpine AS runtime
 # - unzip: Required for extracting server files
 RUN apk add --no-cache openssl tini openjdk21-jre unzip
 
-# Create non-root user for security
+# Create default user (can be overridden with PUID/PGID env vars at runtime)
 RUN addgroup -g 1001 -S hytale && \
     adduser -S -D -H -u 1001 -h /app -s /sbin/nologin -G hytale -g hytale hytale
 
@@ -112,11 +112,11 @@ VOLUME ["/app/data"]
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
+# Install su-exec for dropping privileges
+RUN apk add --no-cache su-exec
+
 # Use tini as init
 ENTRYPOINT ["/sbin/tini", "--"]
 
-# Run as non-root user
-USER hytale
-
-# Start the application
+# Start the application (entrypoint handles PUID/PGID)
 CMD ["/docker-entrypoint.sh"]
