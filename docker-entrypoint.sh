@@ -34,8 +34,8 @@ mkdir -p /app/data/servers
 mkdir -p /app/data/backups
 mkdir -p /app/data/certs
 
-# Fix ownership
-chown -R "$PUID:$PGID" /app/data
+# Fix ownership (entire /app for config.json and node_modules)
+chown -R "$PUID:$PGID" /app
 
 # Generate secrets if not provided
 generate_secret() {
