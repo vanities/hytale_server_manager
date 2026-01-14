@@ -100,8 +100,10 @@ ENV NODE_ENV=production \
     CERTS_PATH=/app/data/certs \
     HSM_BASE_PATH=/app
 
-# Expose the application port
-EXPOSE 3001
+# Expose ports
+# 3001 - Web UI and API
+# 5520 - Default Hytale game server port
+EXPOSE 3001 5520
 
 # Volume for persistent data
 VOLUME ["/app/data"]
