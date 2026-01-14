@@ -51,6 +51,51 @@ cd frontend && npm run dev
 cd server && npm run dev
 ```
 
+## Docker
+
+**Build locally:**
+```bash
+docker build -t hytale-server-manager .
+```
+
+**Run:**
+```bash
+docker run -d \
+  -p 3001:3001 \
+  -v hytale-data:/app/data \
+  --name hytale-server-manager \
+  hytale-server-manager
+```
+
+**From GitHub Container Registry:**
+```bash
+docker run -d \
+  -p 3001:3001 \
+  -v hytale-data:/app/data \
+  --name hytale-server-manager \
+  ghcr.io/vanities/hytale_server_manager:latest
+```
+
+**Access:** https://localhost:3001
+
+**First run:** Check logs for admin password:
+```bash
+docker logs hytale-server-manager | grep Password
+```
+
+**Unraid:** Use the template at `unraid/hytale-server-manager.xml`
+
+### Docker Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 3001 | Web UI port |
+| `JWT_SECRET` | auto-generated | Auth secret (set for persistent sessions) |
+| `JWT_REFRESH_SECRET` | auto-generated | Refresh token secret |
+| `SETTINGS_ENCRYPTION_KEY` | auto-generated | Encryption key |
+| `LOG_LEVEL` | info | debug/info/warn/error |
+| `RATE_LIMIT_MAX` | 10000 | Max API requests per 15 min |
+
 ## Configuration
 
 The server requires these environment variables in `server/.env`:
