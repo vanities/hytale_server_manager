@@ -43,10 +43,11 @@ export const HytaleDownloaderSettingsCard = () => {
   const [localError, setLocalError] = useState<string | null>(null);
   const [localSuccess, setLocalSuccess] = useState<string | null>(null);
 
-  // Fetch status on mount
+  // Fetch status on mount only
   useEffect(() => {
     fetchStatus();
-  }, [fetchStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleInstall = useCallback(async () => {
     setIsInstalling(true);

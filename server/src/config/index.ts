@@ -16,8 +16,8 @@ export const config = {
   logLevel: process.env.LOG_LEVEL || 'debug',
 
   // Paths
-  serversBasePath: path.resolve(process.env.SERVERS_BASE_PATH || './servers'),
-  backupsBasePath: path.resolve(process.env.BACKUPS_BASE_PATH || './backups'),
+  serversBasePath: path.resolve(process.env.SERVERS_BASE_PATH || './data/servers'),
+  backupsBasePath: path.resolve(process.env.BACKUPS_BASE_PATH || './data/backups'),
 
   // WebSocket
   wsPingInterval: parseInt(process.env.WS_PING_INTERVAL || '25000', 10),

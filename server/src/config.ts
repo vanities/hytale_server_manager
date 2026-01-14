@@ -161,8 +161,8 @@ const defaults: AppConfig = {
   // Security
   jwtSecret: '', // Must be set in config
   jwtExpiresIn: '7d',
-  rateLimitWindow: 900000, // 15 minutes
-  rateLimitMax: 100,
+  rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW || '900000', 10), // 15 minutes
+  rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '10000', 10), // 10000 requests per window
   maxFileUploadSize: 52428800, // 50MB
 
   // Performance

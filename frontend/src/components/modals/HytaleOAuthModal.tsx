@@ -71,7 +71,8 @@ export const HytaleOAuthModal = ({ isOpen, onClose, onSuccess }: HytaleOAuthModa
       onSuccess?.();
       setTimeout(() => onClose(), 1500);
     }
-  }, [oauthSession?.status, fetchStatus, onSuccess, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oauthSession?.status]);
 
   const handleCopyCode = useCallback(() => {
     if (oauthSession?.deviceCode) {

@@ -47,10 +47,11 @@ export const HytaleServerDownloadSection = ({
   const [selectedPatchline, setSelectedPatchline] = useState('release');
   const [localError, setLocalError] = useState<string | null>(null);
 
-  // Fetch status on mount
+  // Fetch status on mount only
   useEffect(() => {
     fetchStatus();
-  }, [fetchStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Update version when game version is fetched
   useEffect(() => {
