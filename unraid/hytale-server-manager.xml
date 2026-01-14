@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>hytale-server-manager</Name>
+  <Repository>ghcr.io/vanities/hytale_server_manager:latest</Repository>
+  <Registry>https://github.com/vanities/hytale_server_manager/pkgs/container/hytale_server_manager</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/vanities/hytale_server_manager/issues</Support>
+  <Project>https://github.com/vanities/hytale_server_manager</Project>
+  <Overview>
+    Hytale Server Manager is a web-based management dashboard for Hytale game servers.
+    Features include real-time monitoring, mod management, player administration, backups, and automation.
+
+    Default port: 3001 (HTTPS)
+    Default credentials: Check container logs on first run for admin password
+  </Overview>
+  <Category>GameServers:</Category>
+  <WebUI>https://[IP]:[PORT:3001]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/vanities/hytale_server_manager/main/unraid/hytale-server-manager.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/vanities/hytale_server_manager/main/frontend/public/favicon.ico</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled></DateInstalled>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Web UI Port" Target="3001" Default="3001" Mode="tcp" Description="Port for the web interface and API (HTTPS)" Type="Port" Display="always" Required="true" Mask="false">3001</Config>
+  <Config Name="Data Path" Target="/app/data" Default="/mnt/user/appdata/hytale-server-manager" Mode="rw" Description="Path for persistent data (database, logs, servers, backups)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/hytale-server-manager</Config>
+  <Config Name="JWT Secret" Target="JWT_SECRET" Default="" Mode="" Description="Secret key for JWT authentication. Leave empty to auto-generate (sessions will reset on container restart)." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="JWT Refresh Secret" Target="JWT_REFRESH_SECRET" Default="" Mode="" Description="Secret key for JWT refresh tokens. Leave empty to auto-generate." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Settings Encryption Key" Target="SETTINGS_ENCRYPTION_KEY" Default="" Mode="" Description="32-character encryption key for settings. Leave empty to auto-generate." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Log Level" Target="LOG_LEVEL" Default="info" Mode="" Description="Logging level: debug, info, warn, error" Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
+  <Config Name="Rate Limit Max" Target="RATE_LIMIT_MAX" Default="10000" Mode="" Description="Maximum API requests per 15 minutes. Default: 10000" Type="Variable" Display="advanced" Required="false" Mask="false">10000</Config>
+</Container>

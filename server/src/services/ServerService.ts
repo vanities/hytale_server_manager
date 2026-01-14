@@ -8,6 +8,7 @@ import logger from '../utils/logger';
 import { DiscordNotificationService } from './DiscordNotificationService';
 import { RconService } from './RconService';
 import { LogTailService } from './LogTailService';
+import config from '../config';
 
 export class ServerService {
   private prisma: PrismaClient;
@@ -150,8 +151,10 @@ export class ServerService {
       throw new Error('A server with this name already exists');
     }
 
-    // Resolve to absolute path
-    const serverPath = path.resolve(data.serverPath);
+    // Resolve to absolute path - use config.serversBasePath for relative paths
+    const serverPath = path.isAbsolute(data.serverPath)
+      ? data.serverPath
+      : path.join(config.serversBasePath, path.basename(data.serverPath));
     const worldPath = path.join(serverPath, 'world');
 
     // Create the server directory
